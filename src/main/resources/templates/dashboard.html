@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Dashboard')}"></head>
+<body>
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold">Dashboard</h4>
+            <small class="text-muted" th:text="'Período: ' + ${summary.period}"></small>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Saldo nas Contas</div>
+                    <div class="fs-5 fw-bold text-primary"
+                         th:text="${#numbers.formatCurrency(summary.totalBalance)}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Faturas Pendentes</div>
+                    <div class="fs-5 fw-bold text-danger"
+                         th:text="${'-' + #numbers.formatCurrency(summary.totalCardUsed)}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-primary">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Saldo Efetivo</div>
+                    <div class="fs-5 fw-bold"
+                         th:classappend="${summary.effectiveBalance >= 0} ? 'text-success' : 'text-danger'"
+                         th:text="${#numbers.formatCurrency(summary.effectiveBalance)}"></div>
+                    <div class="text-muted" style="font-size:0.7rem;">contas − faturas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Receita do Mês</div>
+                    <div class="fs-5 fw-bold text-success"
+                         th:text="${#numbers.formatCurrency(summary.monthIncome)}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Despesas do Mês</div>
+                    <div class="fs-5 fw-bold text-danger"
+                         th:text="${#numbers.formatCurrency(summary.monthExpenses)}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Poupança</div>
+                    <div class="fs-5 fw-bold"
+                         th:classappend="${summary.savings >= 0} ? 'text-success' : 'text-danger'"
+                         th:text="${#numbers.formatCurrency(summary.savings)}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Taxa de Poupança</div>
+                    <div class="fs-5 fw-bold text-info" th:text="${summary.savingsRate}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Total em Dívidas</div>
+                    <div class="fs-5 fw-bold text-warning"
+                         th:text="${#numbers.formatCurrency(summary.totalDebt)}"></div>
+                    <div class="text-muted" style="font-size:0.7rem;"
+                         th:text="${summary.activeDebts} + ' ativa(s)'"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">A Receber</div>
+                    <div class="fs-5 fw-bold text-success"
+                         th:text="${#numbers.formatCurrency(summary.totalReceivable)}"></div>
+                    <div class="text-muted" style="font-size:0.7rem;"
+                         th:text="${summary.activeReceivables} + ' parcela(s)'"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-pie-chart me-2"></i>Despesas por Categoria
+                </div>
+                <div class="card-body">
+                    <canvas id="expenseChart" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-lightning me-2"></i>Atalhos Rápidos
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a th:href="@{/transactions}" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle me-2"></i>Nova Transação
+                        </a>
+                        <a th:href="@{/debts}" class="btn btn-outline-danger">
+                            <i class="bi bi-cash-stack me-2"></i>Ver Dívidas
+                            <span class="badge bg-danger ms-1" th:text="${summary.activeDebts}"></span>
+                        </a>
+                        <a th:href="@{/credit-cards}" class="btn btn-outline-secondary">
+                            <i class="bi bi-credit-card me-2"></i>Cartões
+                            <span class="badge bg-secondary ms-1" th:text="${summary.activeCards}"></span>
+                        </a>
+                        <a th:href="@{/budgets}" class="btn btn-outline-success">
+                            <i class="bi bi-pie-chart me-2"></i>Orçamento do Mês
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script th:inline="javascript">
+    const expenseData = /*[[${summary.expenseByCategory}]]*/ {};
+    if (Object.keys(expenseData).length > 0) {
+        new Chart(document.getElementById('expenseChart'), {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(expenseData),
+                datasets: [{
+                    data: Object.values(expenseData),
+                    backgroundColor: [
+                        '#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b',
+                        '#858796','#5a5c69','#fd7e14','#20c997','#6f42c1'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    } else {
+        document.getElementById('expenseChart').parentElement.innerHTML =
+            '<p class="text-center text-muted mt-4">Nenhuma despesa registrada neste mês.</p>';
+    }
+</script>
+</body>
+</html>

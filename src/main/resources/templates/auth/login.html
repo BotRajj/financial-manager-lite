@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Login')}"></head>
+<body class="bg-light">
+
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card shadow-sm" style="width: 400px;">
+        <div class="card-body p-4">
+            <div class="text-center mb-4">
+                <i class="bi bi-graph-up-arrow text-primary" style="font-size:2.5rem;"></i>
+                <h4 class="mt-2 fw-bold">Financial Manager</h4>
+                <p class="text-muted small">Gerencie suas finanças com simplicidade</p>
+            </div>
+
+            <div th:if="${error}"  class="alert alert-danger small"  th:text="${error}"></div>
+            <div th:if="${logout}" class="alert alert-success small" th:text="${logout}"></div>
+            <div th:if="${success}" class="alert alert-success small" th:text="${success}"></div>
+
+            <form th:action="@{/auth/login}" method="post">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">E-mail</label>
+                    <input type="email" name="username" class="form-control"
+                           placeholder="seu@email.com" required autofocus/>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Senha</label>
+                    <input type="password" name="password" class="form-control"
+                           placeholder="••••••••" required/>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" name="remember-me" id="remember"/>
+                    <label class="form-check-label" for="remember">Lembrar por 30 dias</label>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Entrar
+                </button>
+            </form>
+
+            <hr class="my-3"/>
+            <p class="text-center small mb-0">
+                Não tem conta?
+                <a th:href="@{/auth/register}" class="fw-semibold">Cadastre-se grátis</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Cadastro')}"></head>
+<body class="bg-light">
+
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card shadow-sm" style="width: 420px;">
+        <div class="card-body p-4">
+            <div class="text-center mb-4">
+                <i class="bi bi-person-plus text-primary" style="font-size:2.5rem;"></i>
+                <h4 class="mt-2 fw-bold">Criar conta</h4>
+            </div>
+
+            <div th:if="${error}" class="alert alert-danger small" th:text="${error}"></div>
+
+            <form th:action="@{/auth/register}" method="post">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Nome</label>
+                    <input type="text" name="name" class="form-control"
+                           placeholder="Seu nome completo" required autofocus/>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">E-mail</label>
+                    <input type="email" name="email" class="form-control"
+                           placeholder="seu@email.com" required/>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Senha</label>
+                    <input type="password" name="password" class="form-control"
+                           placeholder="Mínimo 6 caracteres" minlength="6" required/>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                    <i class="bi bi-person-check me-2"></i>Criar conta
+                </button>
+            </form>
+
+            <hr class="my-3"/>
+            <p class="text-center small mb-0">
+                Já tem conta?
+                <a th:href="@{/auth/login}" class="fw-semibold">Entrar</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>
