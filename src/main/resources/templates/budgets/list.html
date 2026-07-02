@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Orçamento')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+
+    <div id="banner-wip"
+         class="alert alert-warning alert-dismissible alert-persistent fade show d-flex align-items-start gap-2 py-2 mb-2" role="alert">
+        <i class="bi bi-cone-striped mt-1 flex-shrink-0"></i>
+        <div class="small">
+            <strong>Funcionalidade em desenvolvimento.</strong>
+            O módulo de orçamentos está sendo aprimorado. Algumas funcionalidades podem estar incompletas.
+        </div>
+        <button type="button" class="btn-close btn-sm ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div id="banner-info"
+         class="alert alert-info alert-dismissible alert-persistent fade show d-flex align-items-start gap-2 py-2 mb-3" role="alert">
+        <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+        <div class="small">
+            <strong>Como funcionam os orçamentos:</strong>
+            Os valores gastos são atualizados automaticamente ao lançar despesas.
+            Ao virar o mês, crie novos orçamentos para o período seguinte — o histórico fica disponível alterando a data acima.
+        </div>
+        <button type="button" class="btn-close btn-sm ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-pie-chart me-2"></i>Orçamento Mensal</h4>
+        <div class="d-flex gap-2 align-items-center">
+            <form th:action="@{/budgets}" method="get" class="d-flex gap-2">
+                <input type="date" name="period" class="form-control form-control-sm"
+                       th:value="${period + '-01'}" style="width:160px;"/>
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Ver</button>
+            </form>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBudgetModal">
+                <i class="bi bi-plus-circle me-1"></i>Novo
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div th:each="b : ${budgets}" class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100"
+                 th:classappend="${b.exceeded} ? 'border-danger border' : ''">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-bold" th:text="${b.category}"></span>
+                        <span th:if="${b.exceeded}" class="badge bg-danger">EXCEDIDO</span>
+                        <span th:unless="${b.exceeded}" class="badge bg-success">OK</span>
+                    </div>
+                    <div class="row g-2 text-center mb-3">
+                        <div class="col-4">
+                            <div class="text-muted small">Limite</div>
+                            <div class="fw-semibold small" th:text="${#numbers.formatCurrency(b.limitAmount)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Gasto</div>
+                            <div class="fw-semibold small text-danger" th:text="${#numbers.formatCurrency(b.spentAmount)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Restante</div>
+                            <div class="fw-semibold small text-success" th:text="${#numbers.formatCurrency(b.remainingAmount)}"></div>
+                        </div>
+                    </div>
+                    <div class="mb-1 d-flex justify-content-between small text-muted">
+                        <span>Uso</span>
+                        <span th:text="${#numbers.formatDecimal(b.usagePercentage,1,1)} + '%'"></span>
+                    </div>
+                    <div class="progress mb-3" style="height:8px;">
+                        <div class="progress-bar"
+                             th:classappend="${b.exceeded} ? 'bg-danger' : (${b.usagePercentage >= 80} ? 'bg-warning' : 'bg-success')"
+                             role="progressbar"
+                             th:style="'width:' + (${b.usagePercentage > 100 ? 100 : b.usagePercentage}) + '%'"></div>
+                    </div>
+                    <form th:action="@{'/budgets/' + ${b.id} + '/delete'}" method="post">
+                        <input type="hidden" name="period" th:value="${period}"/>
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100"
+                                onclick="return confirm('Remover este orçamento?')">
+                            <i class="bi bi-trash me-1"></i>Remover
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div th:if="${#lists.isEmpty(budgets)}" class="col-12">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-bar-chart" style="font-size:3rem;"></i>
+                <p class="mt-2">Nenhum orçamento para este período.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Orçamento -->
+<div class="modal fade" id="addBudgetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/budgets/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Novo Orçamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Categoria *</label>
+                        <select name="category" class="form-select" required>
+                            <option th:each="cat : ${categories}" th:value="${cat.name}" th:text="${cat.name}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Período *</label>
+                        <input type="date" name="period" class="form-control"
+                               th:value="${period + '-01'}" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Limite (R$) *</label>
+                        <input type="number" name="limitAmount" class="form-control"
+                               step="0.01" min="0.01" required/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Orçamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>
