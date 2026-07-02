@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Cartões')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-credit-card me-2"></i>Cartões de Crédito</h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
+            <i class="bi bi-plus-circle me-1"></i>Novo Cartão
+        </button>
+    </div>
+
+    <div class="row g-3">
+        <div th:each="card : ${cards}" class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-1">
+                        <div>
+                            <h6 class="fw-bold mb-0" th:text="${card.name}"></h6>
+                        </div>
+                        <small class="text-muted">
+                            Fecha dia <strong th:text="${card.closingDay}"></strong>
+                            · Vence dia <strong th:text="${card.dueDay}"></strong>
+                        </small>
+                    </div>
+
+                    <div th:if="${card.bank != null}" class="mb-2">
+                        <span class="badge bg-primary bg-opacity-10 text-primary small">
+                            <i class="bi bi-building me-1"></i><span th:text="${card.bank.name}"></span>
+                        </span>
+                    </div>
+
+                    <div th:if="${not #lists.isEmpty(card.cardNumbers)}" class="d-flex flex-wrap gap-1 mb-2">
+                        <span th:each="cn : ${card.cardNumbers}" class="badge bg-light text-dark border small">
+                            <i class="bi bi-credit-card-2-front me-1"></i>•••• <span th:text="${cn.lastFourDigits}"></span>
+                            ·
+                            <span th:switch="${cn.type.name()}">
+                                <span th:case="'DEBITO'">Débito</span>
+                                <span th:case="'CREDITO'">Crédito</span>
+                                <span th:case="'VIRTUAL'">Virtual</span>
+                                <span th:case="'FISICO'">Físico</span>
+                            </span>
+                        </span>
+                    </div>
+
+                    <div class="row g-2 text-center mb-3">
+                        <div class="col-4">
+                            <div class="text-muted small">Limite</div>
+                            <div class="fw-semibold small" th:text="${#numbers.formatCurrency(card.creditLimit)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Fatura</div>
+                            <div class="fw-semibold small text-danger" th:text="${#numbers.formatCurrency(card.usedAmount)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Disponível</div>
+                            <div class="fw-semibold small text-success" th:text="${#numbers.formatCurrency(adjustedAvailableByCardId[card.id])}"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-1 d-flex justify-content-between small text-muted">
+                        <span>Uso do limite</span>
+                        <span th:text="${#numbers.formatDecimal(card.usagePercentage,1,1)} + '%'"></span>
+                    </div>
+                    <div class="progress mb-2" style="height:8px;">
+                        <div class="progress-bar"
+                             th:classappend="${card.usagePercentage >= 90} ? 'bg-danger' :
+                                            (${card.usagePercentage >= 70} ? 'bg-warning' : 'bg-success')"
+                             role="progressbar"
+                             th:style="'width:' + (${card.usagePercentage > 100 ? 100 : card.usagePercentage}) + '%'"></div>
+                    </div>
+
+                    <!-- Pagamento mínimo estimado -->
+                    <div th:if="${card.usedAmount.signum() > 0}"
+                         class="alert alert-warning py-1 px-2 mb-2 small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Mín. estimado:
+                        <strong th:text="${#numbers.formatCurrency(card.minimumPayment)}"></strong>
+                        <span class="text-muted">(<span th:text="${#numbers.formatDecimal(card.minimumPaymentRate * 100,1,1)}"></span>%)</span>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <span class="badge bg-light text-secondary border small">
+                            Rotativo <strong th:text="${#numbers.formatDecimal(card.rotatingCreditRate * 100,1,2)} + '% a.m.'"></strong>
+                        </span>
+                        <span class="badge bg-light text-secondary border small">
+                            Parc. fatura <strong th:text="${#numbers.formatDecimal(card.installmentRate * 100,1,2)} + '% a.m.'"></strong>
+                        </span>
+                    </div>
+
+                    <div class="d-flex gap-2 mb-2">
+                        <a th:href="@{'/credit-cards/' + ${card.id} + '/invoice'}"
+                           class="btn btn-outline-primary btn-sm flex-grow-1">
+                            <i class="bi bi-receipt me-1"></i>Ver Fatura
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="modal" th:data-bs-target="${'#editCardModal' + card.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <form th:action="@{'/credit-cards/' + ${card.id} + '/delete'}" method="post">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                    onclick="return confirm('Desativar cartão?')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                    <form th:action="@{'/credit-cards/' + ${card.id} + '/pay-invoice'}"
+                          method="post">
+                        <div class="d-flex gap-1 mb-1">
+                            <input type="number" name="amount" class="form-control form-control-sm"
+                                   th:value="${card.usedAmount}" step="0.01" min="0.01" required/>
+                            <button type="submit" class="btn btn-success btn-sm text-nowrap">
+                                <i class="bi bi-check-lg"></i> Pagar
+                            </button>
+                        </div>
+                        <select name="accountId" class="form-select form-select-sm">
+                            <option value="">Sem débito em conta</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:value="${acc.id}"
+                                    th:text="${acc.name + ' (' + #numbers.formatCurrency(acc.balance) + ')'}"></option>
+                        </select>
+                    </form>
+                    <div th:if="${card.usedAmount.signum() > 0}" class="mt-2">
+                        <button class="btn btn-outline-warning btn-sm w-100"
+                                data-bs-toggle="modal"
+                                th:data-bs-target="${'#parcelarModal' + card.id}">
+                            <i class="bi bi-credit-card-2-back me-1"></i>Parcelar Fatura
+                        </button>
+                    </div>
+                    <div th:if="${invoicePlanCount != null and invoicePlanCount.containsKey(card.id)}"
+                         class="mt-2 alert alert-info py-1 px-2 small mb-0 d-flex justify-content-between align-items-center flex-wrap gap-1">
+                        <span>
+                            <i class="bi bi-calendar3-range me-1"></i>
+                            <strong th:text="${invoicePlanCount.get(card.id)}"></strong>
+                            <span th:text="${invoicePlanCount.get(card.id) == 1 ? ' parcelamento ativo' : ' parcelamentos ativos'}">, </span>
+                        </span>
+                        <span>
+                            <strong th:text="${#numbers.formatCurrency(invoicePlanMonthly.get(card.id))}"></strong>/mês
+                        </span>
+                        <span class="text-muted">
+                            total: <strong th:text="${#numbers.formatCurrency(invoicePlanRemaining.get(card.id))}"></strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div th:if="${#lists.isEmpty(cards)}" class="col-12">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-credit-card-2-front" style="font-size:3rem;"></i>
+                <p class="mt-2">Nenhum cartão cadastrado.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4" th:if="${not #lists.isEmpty(inactiveCards)}">
+        <button class="btn btn-link text-muted px-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#inactiveCardsSection">
+            <i class="bi bi-archive me-1"></i>Cartões desativados (<span th:text="${#lists.size(inactiveCards)}"></span>)
+        </button>
+        <div class="collapse" id="inactiveCardsSection">
+            <div class="row g-3 mt-1">
+                <div th:each="card : ${inactiveCards}" class="col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm h-100 opacity-75">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-1">
+                                <h6 class="fw-bold mb-0" th:text="${card.name}"></h6>
+                                <span class="badge bg-secondary">Desativado</span>
+                            </div>
+                            <div class="text-muted small mb-2">
+                                Limite: <span th:text="${#numbers.formatCurrency(card.creditLimit)}"></span>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        data-bs-toggle="modal" th:data-bs-target="${'#editCardModal' + card.id}">
+                                    <i class="bi bi-pencil me-1"></i>Editar
+                                </button>
+                                <form th:action="@{'/credit-cards/' + ${card.id} + '/reactivate'}" method="post">
+                                    <button type="submit" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reativar
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modais Editar Cartão -->
+<th:block th:each="card : ${cards}">
+    <div class="modal fade" th:id="${'editCardModal' + card.id}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form th:action="@{'/credit-cards/' + ${card.id} + '/edit'}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Editar Cartão</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nome *</label>
+                                <input type="text" name="name" class="form-control" th:value="${card.name}" required/>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                                <select name="bankId" class="form-select">
+                                    <option value="">— Sem banco vinculado —</option>
+                                    <option th:each="bank : ${banks}"
+                                            th:value="${bank.id}" th:text="${bank.name}"
+                                            th:selected="${card.bank != null and card.bank.id == bank.id}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Limite (R$) *</label>
+                                <input type="number" name="creditLimit" class="form-control" step="0.01" min="1"
+                                       th:value="${card.creditLimit}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Dia Fechamento *</label>
+                                <input type="number" name="closingDay" class="form-control" min="1" max="31"
+                                       th:value="${card.closingDay}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Dia Vencimento *</label>
+                                <input type="number" name="dueDay" class="form-control" min="1" max="31"
+                                       th:value="${card.dueDay}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Juros Rotativo (% a.m.)</label>
+                                <input type="number" name="rotatingCreditRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" th:value="${card.rotatingCreditRate}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Parc. fatura (% a.m.)</label>
+                                <input type="number" name="installmentRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" th:value="${card.installmentRate}" required/>
+                            </div>
+                        </div>
+                        <input type="hidden" name="minimumPaymentRate" th:value="${card.minimumPaymentRate}"/>
+                        <input type="hidden" name="latePaymentFine" th:value="${card.latePaymentFine}"/>
+                        <input type="hidden" name="latePaymentInterest" th:value="${card.latePaymentInterest}"/>
+                        <div class="row g-3 mt-0">
+                            <div class="col-6">
+                                <label class="form-label">IOF diário (%/dia)
+                                    <span class="text-muted small" data-bs-toggle="tooltip"
+                                          title="0.000082 = 0,0082% por dia. Alíquota padrão do governo brasileiro.">?</span>
+                                </label>
+                                <input type="number" name="iofDailyRate" class="form-control"
+                                       step="0.000001" min="0" th:value="${card.iofDailyRate}"/>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">IOF adicional (%)
+                                    <span class="text-muted small" data-bs-toggle="tooltip"
+                                          title="0.0038 = 0,38%. Cobrado uma vez por operação.">?</span>
+                                </label>
+                                <input type="number" name="iofAdditionalRate" class="form-control"
+                                       step="0.0001" min="0" th:value="${card.iofAdditionalRate}"/>
+                            </div>
+                        </div>
+                        <hr class="my-2"/>
+                        <p class="small text-muted mb-2">Finais de cartão (últimos 4 dígitos)</p>
+                        <div class="card-numbers-section">
+                            <div class="card-numbers-container">
+                                <div th:each="cn : ${card.cardNumbers}" class="row g-2 align-items-center mb-2 card-number-row">
+                                    <div class="col-5">
+                                        <input type="text" name="cardLastFour" class="form-control" maxlength="4"
+                                               pattern="\d{4}" placeholder="0000" th:value="${cn.lastFourDigits}"/>
+                                    </div>
+                                    <div class="col-5">
+                                        <select name="cardType" class="form-select">
+                                            <option value="DEBITO" th:selected="${cn.type.name() == 'DEBITO'}">Débito</option>
+                                            <option value="CREDITO" th:selected="${cn.type.name() == 'CREDITO'}">Crédito</option>
+                                            <option value="VIRTUAL" th:selected="${cn.type.name() == 'VIRTUAL'}">Cartão virtual</option>
+                                            <option value="FISICO" th:selected="${cn.type.name() == 'FISICO'}">Cartão físico</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-2">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-card-number"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm add-card-number">
+                                <i class="bi bi-plus-lg me-1"></i>Adicionar final
+                            </button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+<th:block th:each="card : ${inactiveCards}">
+    <div class="modal fade" th:id="${'editCardModal' + card.id}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form th:action="@{'/credit-cards/' + ${card.id} + '/edit'}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Editar Cartão</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nome *</label>
+                                <input type="text" name="name" class="form-control" th:value="${card.name}" required/>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                                <select name="bankId" class="form-select">
+                                    <option value="">— Sem banco vinculado —</option>
+                                    <option th:each="bank : ${banks}"
+                                            th:value="${bank.id}" th:text="${bank.name}"
+                                            th:selected="${card.bank != null and card.bank.id == bank.id}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Limite (R$) *</label>
+                                <input type="number" name="creditLimit" class="form-control" step="0.01" min="1"
+                                       th:value="${card.creditLimit}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Dia Fechamento *</label>
+                                <input type="number" name="closingDay" class="form-control" min="1" max="31"
+                                       th:value="${card.closingDay}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Dia Vencimento *</label>
+                                <input type="number" name="dueDay" class="form-control" min="1" max="31"
+                                       th:value="${card.dueDay}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Juros Rotativo (% a.m.)</label>
+                                <input type="number" name="rotatingCreditRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" th:value="${card.rotatingCreditRate}" required/>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label">Parc. fatura (% a.m.)</label>
+                                <input type="number" name="installmentRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" th:value="${card.installmentRate}" required/>
+                            </div>
+                        </div>
+                        <input type="hidden" name="minimumPaymentRate" th:value="${card.minimumPaymentRate}"/>
+                        <input type="hidden" name="latePaymentFine" th:value="${card.latePaymentFine}"/>
+                        <input type="hidden" name="latePaymentInterest" th:value="${card.latePaymentInterest}"/>
+                        <div class="row g-3 mt-0">
+                            <div class="col-6">
+                                <label class="form-label">IOF diário (%/dia)
+                                    <span class="text-muted small" data-bs-toggle="tooltip"
+                                          title="0.000082 = 0,0082% por dia. Alíquota padrão do governo brasileiro.">?</span>
+                                </label>
+                                <input type="number" name="iofDailyRate" class="form-control"
+                                       step="0.000001" min="0" th:value="${card.iofDailyRate}"/>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">IOF adicional (%)
+                                    <span class="text-muted small" data-bs-toggle="tooltip"
+                                          title="0.0038 = 0,38%. Cobrado uma vez por operação.">?</span>
+                                </label>
+                                <input type="number" name="iofAdditionalRate" class="form-control"
+                                       step="0.0001" min="0" th:value="${card.iofAdditionalRate}"/>
+                            </div>
+                        </div>
+                        <hr class="my-2"/>
+                        <p class="small text-muted mb-2">Finais de cartão (últimos 4 dígitos)</p>
+                        <div class="card-numbers-section">
+                            <div class="card-numbers-container">
+                                <div th:each="cn : ${card.cardNumbers}" class="row g-2 align-items-center mb-2 card-number-row">
+                                    <div class="col-5">
+                                        <input type="text" name="cardLastFour" class="form-control" maxlength="4"
+                                               pattern="\d{4}" placeholder="0000" th:value="${cn.lastFourDigits}"/>
+                                    </div>
+                                    <div class="col-5">
+                                        <select name="cardType" class="form-select">
+                                            <option value="DEBITO" th:selected="${cn.type.name() == 'DEBITO'}">Débito</option>
+                                            <option value="CREDITO" th:selected="${cn.type.name() == 'CREDITO'}">Crédito</option>
+                                            <option value="VIRTUAL" th:selected="${cn.type.name() == 'VIRTUAL'}">Cartão virtual</option>
+                                            <option value="FISICO" th:selected="${cn.type.name() == 'FISICO'}">Cartão físico</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-2">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-card-number"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm add-card-number">
+                                <i class="bi bi-plus-lg me-1"></i>Adicionar final
+                            </button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<!-- Modais Parcelar Fatura -->
+<div th:each="card : ${cards}"
+     th:if="${card.usedAmount.signum() > 0}"
+     class="modal fade"
+     th:id="${'parcelarModal' + card.id}"
+     tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form th:action="@{'/credit-cards/' + ${card.id} + '/installment-invoice'}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-credit-card-2-back me-2"></i>Parcelar Fatura —
+                        <span th:text="${card.name}"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Saldo atual da fatura</label>
+                        <div class="form-control bg-light fw-bold text-danger"
+                             th:text="${#numbers.formatCurrency(card.usedAmount)}"></div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Entrada (R$)
+                                <span class="text-muted small" data-bs-toggle="tooltip"
+                                      title="Valor pago agora. O restante será parcelado com juros.">?</span>
+                            </label>
+                            <input type="number" name="entrada" class="form-control pmt-entrada"
+                                   th:data-balance="${card.usedAmount}"
+                                   th:data-rate="${card.installmentRate}"
+                                   th:value="${card.minimumPayment}"
+                                   step="0.01" min="0"
+                                   th:max="${card.usedAmount}" required/>
+                            <div class="form-text">0 = financiar o saldo total</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Parcelas</label>
+                            <select name="totalInstallments" class="form-select pmt-n">
+                                <option th:each="i : ${#numbers.sequence(1, 12)}"
+                                        th:value="${i}" th:text="${i + 'x'}"
+                                        th:selected="${i == 6}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Dia vencimento</label>
+                            <input type="number" name="dayOfMonth" class="form-control"
+                                   th:value="${card.dueDay}" min="1" max="28" required/>
+                        </div>
+                    </div>
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="text-muted small">Valor financiado</div>
+                                <div class="fw-bold pmt-financed">—</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted small">Parcela estimada</div>
+                                <div class="fw-bold text-warning pmt-value">—</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted small">Total c/ juros</div>
+                                <div class="fw-bold text-danger pmt-total">—</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 small text-muted">
+                            Taxa parcelamento:
+                            <strong th:text="${#numbers.formatDecimal(card.installmentRate * 100,1,2)} + '% a.m.'"></strong>
+                        </div>
+                    </div>
+                    <div class="mt-3" th:if="${not #lists.isEmpty(accounts)}">
+                        <label class="form-label">Debitar entrada de
+                            <span class="text-muted small fw-normal">(opcional)</span>
+                        </label>
+                        <select name="accountId" class="form-select">
+                            <option value="">Sem débito em conta</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:value="${acc.id}"
+                                    th:text="${acc.name + ' (' + #numbers.formatCurrency(acc.balance) + ')'}"></option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning fw-semibold">
+                        <i class="bi bi-check-circle me-1"></i>Confirmar Parcelamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Cartão -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form th:action="@{/credit-cards/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Novo Cartão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" name="name" class="form-control" placeholder="Ex: Nubank Roxinho" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                            <select name="bankId" class="form-select">
+                                <option value="">— Sem banco vinculado —</option>
+                                <option th:each="bank : ${banks}"
+                                        th:value="${bank.id}" th:text="${bank.name}"></option>
+                            </select>
+                            <div class="form-text">Você pode vincular a um banco depois, na página Bancos.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Limite (R$) *</label>
+                            <input type="number" name="creditLimit" class="form-control" step="0.01" min="1" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Dia Fechamento *</label>
+                            <input type="number" name="closingDay" class="form-control" min="1" max="31" value="10" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Dia Vencimento *</label>
+                            <input type="number" name="dueDay" class="form-control" min="1" max="31" value="17" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Juros Rotativo (% a.m.)
+                                <span class="text-muted small" data-bs-toggle="tooltip"
+                                      title="Taxa de juros mensal do crédito rotativo">?</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="rotatingCreditRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" value="0.15" required/>
+                                <span class="input-group-text">%×100</span>
+                            </div>
+                            <div class="form-text">0.15 = 15% a.m.</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Parc. fatura (% a.m.)
+                                <span class="text-muted small" data-bs-toggle="tooltip"
+                                      title="Juros cobrados ao parcelar a fatura">?</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="installmentRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" value="0.1590" required/>
+                                <span class="input-group-text">%×100</span>
+                            </div>
+                            <div class="form-text">0.1590 = 15,90% a.m.</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">IOF diário (%/dia)
+                                <span class="text-muted small" data-bs-toggle="tooltip"
+                                      title="0.000082 = 0,0082% por dia. Alíquota padrão do governo brasileiro.">?</span>
+                            </label>
+                            <input type="number" name="iofDailyRate" class="form-control"
+                                   step="0.000001" min="0" value="0.000082"/>
+                            <div class="form-text">Padrão: 0.000082</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">IOF adicional (%)
+                                <span class="text-muted small" data-bs-toggle="tooltip"
+                                      title="0.0038 = 0,38%. Cobrado uma vez por operação de crédito em atraso.">?</span>
+                            </label>
+                            <input type="number" name="iofAdditionalRate" class="form-control"
+                                   step="0.0001" min="0" value="0.0038"/>
+                            <div class="form-text">Padrão: 0.0038</div>
+                        </div>
+                    </div>
+                    <hr class="my-2"/>
+                    <p class="small text-muted mb-2">Finais de cartão (últimos 4 dígitos)</p>
+                    <div class="card-numbers-section">
+                        <div class="card-numbers-container"></div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm add-card-number">
+                            <i class="bi bi-plus-lg me-1"></i>Adicionar final
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script>
+(function () {
+    function fmt(n) {
+        return n.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    }
+    function calcPmt(pv, rate, n) {
+        if (n <= 0 || pv <= 0) return 0;
+        if (rate === 0) return pv / n;
+        return pv * rate / (1 - Math.pow(1 + rate, -n));
+    }
+    function update(modal) {
+        var entEl = modal.querySelector('.pmt-entrada');
+        if (!entEl) return;
+        var bal  = parseFloat(entEl.dataset.balance) || 0;
+        var rate = parseFloat(entEl.dataset.rate) || 0;
+        var ent  = parseFloat(entEl.value) || 0;
+        var n    = parseInt(modal.querySelector('.pmt-n').value) || 1;
+        var pv   = Math.max(0, bal - ent);
+        var pmt  = calcPmt(pv, rate, n);
+        modal.querySelector('.pmt-financed').textContent = fmt(pv);
+        modal.querySelector('.pmt-value').textContent    = fmt(pmt);
+        modal.querySelector('.pmt-total').textContent    = fmt(pmt * n);
+    }
+    document.querySelectorAll('[id^="parcelarModal"]').forEach(function (m) {
+        var e = m.querySelector('.pmt-entrada');
+        var s = m.querySelector('.pmt-n');
+        if (e) {
+            e.addEventListener('input', function () { update(m); });
+            s.addEventListener('change', function () { update(m); });
+            m.addEventListener('shown.bs.modal', function () { update(m); });
+        }
+    });
+
+    document.addEventListener('click', function (ev) {
+        var addBtn = ev.target.closest('.add-card-number');
+        if (addBtn) {
+            var container = addBtn.closest('.card-numbers-section').querySelector('.card-numbers-container');
+            var row = document.createElement('div');
+            row.className = 'row g-2 align-items-center mb-2 card-number-row';
+            row.innerHTML =
+                '<div class="col-5"><input type="text" name="cardLastFour" class="form-control" maxlength="4" pattern="\\d{4}" placeholder="0000"/></div>' +
+                '<div class="col-5"><select name="cardType" class="form-select">' +
+                '<option value="DEBITO">Débito</option>' +
+                '<option value="CREDITO" selected>Crédito</option>' +
+                '<option value="VIRTUAL">Cartão virtual</option>' +
+                '<option value="FISICO">Cartão físico</option>' +
+                '</select></div>' +
+                '<div class="col-2"><button type="button" class="btn btn-outline-danger btn-sm remove-card-number"><i class="bi bi-x-lg"></i></button></div>';
+            container.appendChild(row);
+            return;
+        }
+        var removeBtn = ev.target.closest('.remove-card-number');
+        if (removeBtn) {
+            removeBtn.closest('.card-number-row').remove();
+        }
+    });
+})();
+</script>
+</body>
+</html>

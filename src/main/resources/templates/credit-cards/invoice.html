@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Fatura')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+
+    <!-- Cabeçalho -->
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="@{/credit-cards}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h4 class="mb-0 fw-bold">
+                <i class="bi bi-receipt me-2"></i>Fatura — <span th:text="${card.name}"></span>
+            </h4>
+        </div>
+    </div>
+
+    <!-- Resumo da fatura -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="text-muted small mb-1">Total da Fatura</div>
+                <div class="fs-4 fw-bold text-danger" th:text="${#numbers.formatCurrency(total)}"></div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="text-muted small mb-1">Período</div>
+                <div class="fw-semibold small">
+                    <span th:text="${#temporals.format(periodStart,'dd/MM/yyyy')}"></span>
+                    &nbsp;→&nbsp;
+                    <span th:text="${#temporals.format(periodEnd,'dd/MM/yyyy')}"></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="text-muted small mb-1">Vencimento</div>
+                <div class="fw-semibold" th:text="${#temporals.format(dueDate,'dd/MM/yyyy')}"></div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="text-muted small mb-1">Limite Disponível</div>
+                <div class="fw-semibold text-success" th:text="${#numbers.formatCurrency(card.availableLimit)}"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opções de pagamento mínimo -->
+    <div class="alert alert-warning d-flex gap-3 align-items-center mb-4" role="alert">
+        <i class="bi bi-info-circle-fill fs-5"></i>
+        <div class="flex-grow-1">
+            <strong>Pagamento mínimo:</strong>
+            <span th:text="${#numbers.formatCurrency(minPayment)}"></span>
+            <span class="text-muted small">
+                (<span th:text="${#numbers.formatDecimal(card.minimumPaymentRate * 100,1,1)}"></span>% da fatura)
+            </span>
+            <span th:if="${total.compareTo(minPayment) > 0}" class="text-danger ms-2 small">
+                — juros <strong th:text="${#numbers.formatDecimal(card.rotatingCreditRate * 100,1,1)}"></strong>% a.m. sobre o restante
+            </span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-warning btn-sm"
+                    th:data-val="${minPayment}"
+                    onclick="document.querySelector('input[name=amount]').value = this.dataset.val">
+                Preencher mínimo
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm"
+                    th:data-val="${total}"
+                    onclick="document.querySelector('input[name=amount]').value = this.dataset.val">
+                Preencher total
+            </button>
+        </div>
+    </div>
+
+    <!-- Parcelas de dívidas -->
+    <div th:if="${not #lists.isEmpty(debts)}" class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-calendar-week me-1"></i>Parcelas de Dívidas
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Credor</th>
+                        <th>Descrição</th>
+                        <th>Progresso</th>
+                        <th class="text-end">Parcela</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="debt : ${debts}">
+                        <td class="fw-semibold" th:text="${debt.creditorName}"></td>
+                        <td class="text-muted small" th:text="${debt.description ?: '-'}"></td>
+                        <td class="small text-muted">
+                            <span th:text="${debt.paidInstallments} + '/' + ${debt.totalInstallments} + 'x'"></span>
+                        </td>
+                        <td class="text-end fw-semibold text-danger"
+                            th:text="${'-' + #numbers.formatCurrency(debt.installmentValue)}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Lançamentos -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-list-ul me-1"></i>Lançamentos no período
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th class="text-end">Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="tx : ${transactions}">
+                        <td class="text-muted small"
+                            th:text="${#temporals.format(tx.transactionDate,'dd/MM/yy')}"></td>
+                        <td th:text="${tx.description}"></td>
+                        <td><span class="badge bg-secondary" th:text="${tx.category ?: '-'}"></span></td>
+                        <td class="text-end fw-semibold text-danger"
+                            th:text="${'-' + #numbers.formatCurrency(tx.amount)}"></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(transactions)}">
+                        <td colspan="4" class="text-center text-muted py-4">
+                            Nenhum lançamento avulso neste período.
+                        </td>
+                    </tr>
+                </tbody>
+                <tfoot th:if="${not #lists.isEmpty(transactions) or not #lists.isEmpty(debts)}" class="table-light">
+                    <tr>
+                        <td colspan="3" class="fw-bold text-end">Total da Fatura</td>
+                        <td class="fw-bold text-end text-danger"
+                            th:text="${'-' + #numbers.formatCurrency(total)}"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagar fatura -->
+    <div class="mt-4">
+        <form th:action="@{'/credit-cards/' + ${card.id} + '/pay-invoice'}" method="post">
+            <div class="d-flex gap-2 align-items-end flex-wrap">
+                <div>
+                    <label class="form-label small text-muted mb-1">Valor a pagar</label>
+                    <input type="number" name="amount" class="form-control"
+                           th:value="${card.usedAmount}" step="0.01" min="0.01" style="width:180px;" required/>
+                </div>
+                <div>
+                    <label class="form-label small text-muted mb-1">Débitar da conta</label>
+                    <select name="accountId" class="form-select" style="width:220px;">
+                        <option value="">Sem débito em conta</option>
+                        <option th:each="acc : ${accounts}"
+                                th:value="${acc.id}"
+                                th:text="${acc.name + ' (' + #numbers.formatCurrency(acc.balance) + ')'}"></option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle me-1"></i>Pagar Fatura
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>
