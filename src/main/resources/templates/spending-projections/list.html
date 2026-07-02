@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Projeções de Gastos')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="mb-3">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-bullseye me-2"></i>Projeções de Gastos</h4>
+        <small class="text-muted">Simule cenários com diferentes combinações de parcelas, cartões e gastos.</small>
+    </div>
+
+    <!-- Sub-navegação -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link" th:href="@{/projection}">
+                <i class="bi bi-bar-chart-line me-1"></i>Fluxo de Caixa
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link active" th:href="@{/spending-projections}">
+                <i class="bi bi-bullseye me-1"></i>Projeções
+            </a>
+        </li>
+    </ul>
+
+    <!-- Nova projeção -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h6 class="mb-0 fw-semibold"><i class="bi bi-plus-circle me-1"></i>Nova Projeção</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" th:action="@{/spending-projections/create}" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-semibold">Nome</label>
+                    <input type="text" name="name" class="form-control form-control-sm"
+                           placeholder="Ex: Cenário compra do carro" required maxlength="100"/>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Modo</label>
+                    <select name="mode" class="form-select form-select-sm">
+                        <option value="INCLUDE">Incluir apenas itens selecionados</option>
+                        <option value="EXCLUDE_FROM_ALL">Todos os gastos menos os excluídos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus me-1"></i>Criar Projeção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de projeções -->
+    <div th:if="${not #lists.isEmpty(projections)}">
+        <h6 class="fw-semibold mb-3">Suas Projeções</h6>
+        <div class="row g-3">
+            <div th:each="proj : ${projections}" class="col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-2">
+                            <div>
+                                <h6 class="mb-1 fw-semibold" th:text="${proj.name}"></h6>
+                                <span class="badge"
+                                      th:classappend="${proj.mode == 'INCLUDE'} ? 'bg-primary' : 'bg-secondary'"
+                                      th:text="${proj.mode == 'INCLUDE'} ? 'Inclusão' : 'Exclusão'"></span>
+                            </div>
+                            <form method="post"
+                                  th:action="@{/spending-projections/{id}/delete(id=${proj.id})}"
+                                  onsubmit="return confirm('Remover esta projeção?')">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0 ms-2">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                        <div class="text-muted small mb-3">
+                            <span th:text="${#lists.size(proj.items)}"></span> iten(s) configurado(s)
+                        </div>
+                        <a th:href="@{/spending-projections/{id}(id=${proj.id})}"
+                           class="btn btn-outline-primary btn-sm w-100">
+                            <i class="bi bi-pencil me-1"></i>Editar / Ver resultado
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(projections)}" class="text-center text-muted py-5">
+        <i class="bi bi-bullseye fs-1 d-block mb-2 opacity-25"></i>
+        Nenhuma projeção criada ainda.<br>
+        <small>Use o formulário acima para criar seu primeiro cenário.</small>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

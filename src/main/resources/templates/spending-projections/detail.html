@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Projeção')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <!-- Cabeçalho -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <a th:href="@{/spending-projections}" class="text-muted text-decoration-none small">
+                <i class="bi bi-arrow-left me-1"></i>Projeções
+            </a>
+            <h4 class="mb-0 fw-bold mt-1">
+                <i class="bi bi-bullseye me-2"></i>
+                <span th:text="${proj.name}"></span>
+                <span class="badge ms-2 align-middle"
+                      th:classappend="${proj.mode == 'INCLUDE'} ? 'bg-primary' : 'bg-secondary'"
+                      th:text="${proj.mode == 'INCLUDE'} ? 'Inclusão' : 'Exclusão'"></span>
+            </h4>
+        </div>
+        <form method="post"
+              th:action="@{/spending-projections/{id}/delete(id=${proj.id})}"
+              onsubmit="return confirm('Remover esta projeção?')">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash me-1"></i>Excluir
+            </button>
+        </form>
+    </div>
+
+    <!-- Sub-navegação -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link" th:href="@{/projection}">
+                <i class="bi bi-bar-chart-line me-1"></i>Fluxo de Caixa
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link active" th:href="@{/spending-projections}">
+                <i class="bi bi-bullseye me-1"></i>Projeções
+            </a>
+        </li>
+    </ul>
+
+    <!-- Tabs internas: Configurar | Resultado -->
+    <ul class="nav nav-pills mb-4" id="projTabs">
+        <li class="nav-item">
+            <a class="nav-link active" href="#tab-config" data-bs-toggle="pill">
+                <i class="bi bi-sliders me-1"></i>Configurar
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#tab-result" data-bs-toggle="pill">
+                <i class="bi bi-table me-1"></i>Resultado
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- ── Tab Configurar ─────────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="tab-config">
+            <div class="row g-4">
+                <!-- Coluna esquerda: itens atuais -->
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0 fw-semibold"><i class="bi bi-list-check me-1"></i>Itens da projeção</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div th:if="${#lists.isEmpty(items)}" class="text-center text-muted py-4 px-3">
+                                Nenhum item adicionado. Use os formulários ao lado.
+                            </div>
+                            <ul class="list-group list-group-flush" th:if="${not #lists.isEmpty(items)}">
+                                <li th:each="item : ${items}"
+                                    class="list-group-item d-flex align-items-center justify-content-between gap-2 py-2">
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div class="fw-semibold text-truncate small" th:text="${item.displayLabel}"></div>
+                                        <div class="text-muted" style="font-size:0.75rem;">
+                                            <span th:if="${item.itemType == 'ENTRY'}"
+                                                  th:text="${item.excluded ? 'Excluído' : 'Incluído'}"></span>
+                                            <span th:if="${item.itemType == 'CARD'}"
+                                                  th:text="${item.cardMode == 'MIN_PAYMENT' ? 'Pag. mínimo' : item.cardInstallments + 'x — PMT: ' + #numbers.formatCurrency(item.calcCardPmt())}"></span>
+                                            <span th:if="${item.itemType == 'CUSTOM'}"
+                                                  th:text="${item.customInstallments + 'x de ' + #numbers.formatCurrency(item.customAmount)}"></span>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                        <span th:if="${item.confirmed}" class="badge bg-success" style="font-size:0.7rem;">Confirmado</span>
+                                        <form method="post"
+                                              th:action="@{/spending-projections/items/{id}/remove(id=${item.id})}">
+                                            <button type="submit" class="btn btn-link btn-sm text-danger p-0">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna direita: formulários de adição -->
+                <div class="col-lg-7">
+                    <!-- Accordion de formulários -->
+                    <div class="accordion" id="addItemAccordion">
+
+                        <!-- Adicionar entrada/parcela recorrente -->
+                        <div class="accordion-item border-0 shadow-sm mb-3">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-semibold" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapseEntry">
+                                    <i class="bi bi-calendar-event me-2 text-primary"></i>
+                                    Adicionar Parcela / Recorrente
+                                </button>
+                            </h2>
+                            <div id="collapseEntry" class="accordion-collapse collapse"
+                                 data-bs-parent="#addItemAccordion">
+                                <div class="accordion-body">
+                                    <form method="post"
+                                          th:action="@{/spending-projections/{id}/items/add-entry(id=${proj.id})}">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Parcelas ativas</label>
+                                            <select name="entryId" class="form-select form-select-sm" required>
+                                                <option value="">— Selecione —</option>
+                                                <optgroup label="Parcelas / Dívidas"
+                                                          th:if="${not #lists.isEmpty(availableInstallments)}">
+                                                    <option th:each="e : ${availableInstallments}"
+                                                            th:value="${e.id}"
+                                                            th:text="${e.description + ' (' + (e.totalInstallments - e.paidInstallments) + ' restantes)'}"
+                                                            th:disabled="${addedEntryIds.contains(e.id)}"></option>
+                                                </optgroup>
+                                                <optgroup label="Recorrentes"
+                                                          th:if="${not #lists.isEmpty(availableRecurring)}">
+                                                    <option th:each="e : ${availableRecurring}"
+                                                            th:value="${e.id}"
+                                                            th:text="${e.description}"
+                                                            th:disabled="${addedEntryIds.contains(e.id)}"></option>
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3" th:if="${proj.mode == 'EXCLUDE_FROM_ALL'}">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox"
+                                                       name="excluded" value="true" id="chkExcluded"/>
+                                                <label class="form-check-label small" for="chkExcluded">
+                                                    Excluir este item da projeção
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-plus me-1"></i>Adicionar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Adicionar cartão de crédito -->
+                        <div class="accordion-item border-0 shadow-sm mb-3">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-semibold" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapseCard">
+                                    <i class="bi bi-credit-card me-2 text-warning"></i>
+                                    Adicionar Fatura de Cartão
+                                </button>
+                            </h2>
+                            <div id="collapseCard" class="accordion-collapse collapse"
+                                 data-bs-parent="#addItemAccordion">
+                                <div class="accordion-body">
+                                    <form method="post"
+                                          th:action="@{/spending-projections/{id}/items/add-card(id=${proj.id})}">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Cartão</label>
+                                            <select name="cardId" class="form-select form-select-sm" required
+                                                    onchange="updateCardInfo(this)">
+                                                <option value="">— Selecione —</option>
+                                                <option th:each="c : ${availableCards}"
+                                                        th:value="${c.id}"
+                                                        th:text="${c.name + ' — ' + #numbers.formatCurrency(c.usedAmount)}"
+                                                        th:attr="data-used=${c.usedAmount},data-rate=${c.installmentRate},data-due=${c.dueDay}"
+                                                        th:disabled="${addedCardIds.contains(c.id)}"></option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Forma de tratamento</label>
+                                            <select name="cardMode" class="form-select form-select-sm" id="cardModeSelect"
+                                                    onchange="toggleCardInstallFields()">
+                                                <option value="MIN_PAYMENT">Pagamento mínimo (rotativo)</option>
+                                                <option value="INSTALLMENT">Parcelar fatura</option>
+                                            </select>
+                                        </div>
+                                        <div id="installFieldsDiv" class="d-none">
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold">Nº parcelas</label>
+                                                    <input type="number" name="cardInstallments" id="cardInstallments"
+                                                           class="form-control form-control-sm" value="12" min="1" max="60"
+                                                           oninput="recalcPmt()"/>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold">Entrada (R$)</label>
+                                                    <input type="number" name="cardEntrada" id="cardEntrada"
+                                                           class="form-control form-control-sm" value="0" min="0" step="0.01"
+                                                           oninput="recalcPmt()"/>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">Dia de vencimento</label>
+                                                <input type="number" name="cardDayOfMonth" id="cardDayOfMonth"
+                                                       class="form-control form-control-sm" value="1" min="1" max="28"/>
+                                            </div>
+                                            <div class="alert alert-info py-2 small mb-3" id="pmtDisplay" style="display:none!important;">
+                                                PMT estimado: <strong id="pmtVal">—</strong>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-warning btn-sm">
+                                            <i class="bi bi-plus me-1"></i>Adicionar cartão
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Adicionar gasto personalizado -->
+                        <div class="accordion-item border-0 shadow-sm">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-semibold" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapseCustom">
+                                    <i class="bi bi-pencil-square me-2 text-info"></i>
+                                    Adicionar Gasto / Renda Personalizado
+                                </button>
+                            </h2>
+                            <div id="collapseCustom" class="accordion-collapse collapse"
+                                 data-bs-parent="#addItemAccordion">
+                                <div class="accordion-body">
+                                    <form method="post"
+                                          th:action="@{/spending-projections/{id}/items/add-custom(id=${proj.id})}">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Descrição</label>
+                                            <input type="text" name="customDescription"
+                                                   class="form-control form-control-sm" required maxlength="200"
+                                                   placeholder="Ex: Seguro automóvel"/>
+                                        </div>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold">Valor total (R$)</label>
+                                                <input type="number" name="customAmount"
+                                                       class="form-control form-control-sm" required
+                                                       min="0.01" step="0.01" placeholder="0,00"/>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold">Tipo</label>
+                                                <select name="customType" class="form-select form-select-sm">
+                                                    <option value="EXPENSE">Despesa</option>
+                                                    <option value="INCOME">Receita</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold">Nº parcelas</label>
+                                                <input type="number" name="customInstallments"
+                                                       class="form-control form-control-sm" value="1" min="1" max="120"/>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold">Dia do mês</label>
+                                                <input type="number" name="customDayOfMonth"
+                                                       class="form-control form-control-sm" value="1" min="1" max="28"/>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-info btn-sm text-white">
+                                            <i class="bi bi-plus me-1"></i>Adicionar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /accordion -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Tab Resultado ─────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-result">
+
+            <!-- Itens que podem ser confirmados -->
+            <div th:if="${not #lists.isEmpty(items)}" class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-check2-circle me-1"></i>Ações — confirmar no sistema</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <li th:each="item : ${items}"
+                            th:if="${(item.itemType == 'CARD' and item.cardMode == 'INSTALLMENT') or item.itemType == 'CUSTOM'}"
+                            class="list-group-item d-flex align-items-center justify-content-between gap-3 py-2">
+                            <div>
+                                <div class="small fw-semibold" th:text="${item.displayLabel}"></div>
+                                <div class="text-muted" style="font-size:0.75rem;">
+                                    <span th:if="${item.itemType == 'CARD'}"
+                                          th:text="${'Parcelar em ' + item.cardInstallments + 'x — PMT: ' + #numbers.formatCurrency(item.calcCardPmt())}"></span>
+                                    <span th:if="${item.itemType == 'CUSTOM'}"
+                                          th:text="${item.customInstallments + 'x de ' + #numbers.formatCurrency(item.customAmount) + ' / mês'}"></span>
+                                </div>
+                            </div>
+                            <div th:if="${item.confirmed}" class="text-success small fw-semibold">
+                                <i class="bi bi-check-circle-fill me-1"></i>Confirmado
+                            </div>
+                            <form th:if="${!item.confirmed}" method="post"
+                                  th:action="@{/spending-projections/items/{id}/confirm(id=${item.id})}">
+                                <button type="submit" class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-check2 me-1"></i>Confirmar
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Linha do tempo 12 meses -->
+            <h6 class="fw-semibold mb-3">Projeção — próximos 12 meses</h6>
+            <div class="d-flex gap-3 pb-3 mb-4" style="overflow-x:auto;">
+                <div th:each="row : ${monthRows}" class="flex-shrink-0" style="width:160px;">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100"
+                         th:classappend="${row.closingBalance.signum() < 0} ? 'border-danger border-1' : ''">
+                        <div class="text-muted small text-uppercase fw-semibold mb-0"
+                             th:text="${#temporals.format(row.month.atDay(1), 'MMM', #locale)}"></div>
+                        <div class="small text-muted mb-2" th:text="${row.month.year}"></div>
+                        <div class="fw-bold mb-1"
+                             th:classappend="${row.closingBalance.signum() < 0} ? 'text-danger' : 'text-success'"
+                             th:text="${#numbers.formatCurrency(row.closingBalance)}"></div>
+                        <div class="small"
+                             th:classappend="${row.netChange.signum() < 0} ? 'text-danger' : 'text-success'">
+                            <i th:class="${row.netChange.signum() < 0} ? 'bi bi-arrow-down' : 'bi bi-arrow-up'"></i>
+                            <span th:text="${#numbers.formatCurrency(row.netChange.abs())}"></span>
+                        </div>
+                        <div class="d-flex justify-content-center gap-1 mt-2">
+                            <span class="badge bg-success" style="font-size:0.65rem;"
+                                  th:text="${'+' + #numbers.formatCurrency(row.income)}"></span>
+                            <span class="badge bg-danger" style="font-size:0.65rem;"
+                                  th:text="${'-' + #numbers.formatCurrency(row.expense)}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detalhe do mês clicado -->
+            <div th:if="${not #lists.isEmpty(monthRows)}" class="accordion" id="monthAccordion">
+                <div th:each="row, rowStat : ${monthRows}" class="accordion-item border-0 shadow-sm mb-2">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed py-2 fw-semibold" type="button"
+                                data-bs-toggle="collapse"
+                                th:attr="data-bs-target='#month' + ${rowStat.index}">
+                            <span class="me-3"
+                                  th:text="${#temporals.format(row.month.atDay(1), 'MMMM yyyy', #locale)}"></span>
+                            <span class="badge"
+                                  th:classappend="${row.netChange.signum() < 0} ? 'bg-danger' : 'bg-success'"
+                                  th:text="${(row.netChange.signum() < 0 ? '−' : '+') + #numbers.formatCurrency(row.netChange.abs())}"></span>
+                            <span class="ms-2 text-muted fw-normal small"
+                                  th:text="${'Saldo final: ' + #numbers.formatCurrency(row.closingBalance)}"></span>
+                        </button>
+                    </h2>
+                    <div th:id="'month' + ${rowStat.index}" class="accordion-collapse collapse"
+                         data-bs-parent="#monthAccordion">
+                        <div class="accordion-body p-0">
+
+                            <!-- Resumo de composição -->
+                            <div th:if="${not #lists.isEmpty(row.originSummaries)}"
+                                 class="px-3 py-2 border-bottom bg-light d-flex flex-wrap gap-3 align-items-center">
+                                <span class="small text-muted fw-semibold me-1">Composição:</span>
+                                <div th:each="s : ${row.originSummaries}" class="d-flex align-items-center gap-1">
+                                    <span class="badge" th:classappend="${s.badge}"
+                                          style="font-size:0.65rem;" th:text="${s.label}"></span>
+                                    <span class="small">
+                                        <span th:if="${s.income.signum() > 0}" class="text-success fw-semibold"
+                                              th:text="${'+' + #numbers.formatCurrency(s.income)}"></span>
+                                        <span th:if="${s.income.signum() > 0 and s.expense.signum() > 0}" class="text-muted"> / </span>
+                                        <span th:if="${s.expense.signum() > 0}" class="text-danger fw-semibold"
+                                              th:text="${'−' + #numbers.formatCurrency(s.expense)}"></span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:50px">Dia</th>
+                                        <th>Descrição</th>
+                                        <th style="width:100px">Origem</th>
+                                        <th class="text-end">Valor</th>
+                                        <th class="text-end">Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="ev : ${row.events}">
+                                        <td class="text-muted small" th:text="${ev.day}"></td>
+                                        <td class="small" th:text="${ev.description}"></td>
+                                        <td>
+                                            <span class="badge" th:classappend="${ev.badge}"
+                                                  style="font-size:0.65rem;" th:text="${ev.originLabel}"></span>
+                                        </td>
+                                        <td class="text-end small fw-semibold"
+                                            th:classappend="${ev.type == 'INCOME'} ? 'text-success' : 'text-danger'"
+                                            th:text="${(ev.type == 'INCOME' ? '+' : '−') + #numbers.formatCurrency(ev.amount)}"></td>
+                                        <td class="text-end small"
+                                            th:classappend="${ev.running.signum() < 0} ? 'text-danger' : ''"
+                                            th:text="${#numbers.formatCurrency(ev.running)}"></td>
+                                    </tr>
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="3" class="small text-muted">
+                                            Receitas: <span th:text="${#numbers.formatCurrency(row.income)}"></span>
+                                            · Despesas: <span th:text="${#numbers.formatCurrency(row.expense)}"></span>
+                                        </td>
+                                        <td class="text-end fw-bold"
+                                            th:classappend="${row.netChange.signum() < 0} ? 'text-danger' : 'text-success'"
+                                            th:text="${(row.netChange.signum() < 0 ? '−' : '+') + #numbers.formatCurrency(row.netChange.abs())}"></td>
+                                        <td class="text-end fw-bold"
+                                            th:classappend="${row.closingBalance.signum() < 0} ? 'text-danger' : 'text-success'"
+                                            th:text="${#numbers.formatCurrency(row.closingBalance)}"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${#lists.isEmpty(monthRows)}" class="text-center text-muted py-4">
+                Adicione itens na aba "Configurar" para ver a projeção.
+            </div>
+
+        </div><!-- /tab-result -->
+    </div><!-- /tab-content -->
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script>
+function toggleCardInstallFields() {
+    const mode = document.getElementById('cardModeSelect').value;
+    const div  = document.getElementById('installFieldsDiv');
+    div.classList.toggle('d-none', mode !== 'INSTALLMENT');
+}
+
+let _cardUsed = 0, _cardRate = 0;
+
+function updateCardInfo(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    _cardUsed = parseFloat(opt.dataset.used || 0);
+    _cardRate = parseFloat(opt.dataset.rate || 0);
+    const day = parseInt(opt.dataset.due || 1);
+    document.getElementById('cardDayOfMonth').value = day;
+    recalcPmt();
+}
+
+function recalcPmt() {
+    const n       = parseInt(document.getElementById('cardInstallments').value) || 1;
+    const entrada = parseFloat(document.getElementById('cardEntrada').value) || 0;
+    const pv      = _cardUsed - entrada;
+    if (pv <= 0 || _cardRate === 0) {
+        const pmt = pv / n;
+        showPmt(pmt > 0 ? pmt : 0);
+        return;
+    }
+    const r   = _cardRate;
+    const pmt = pv * r / (1 - Math.pow(1 + r, -n));
+    showPmt(pmt);
+}
+
+function showPmt(pmt) {
+    const el = document.getElementById('pmtVal');
+    const div = document.getElementById('pmtDisplay');
+    if (el) {
+        el.textContent = 'R$ ' + pmt.toFixed(2).replace('.', ',');
+        div.style.removeProperty('display');
+    }
+}
+</script>
+</body>
+</html>
