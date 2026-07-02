@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Transações')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Transações</h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTxModal">
+            <i class="bi bi-plus-circle me-1"></i>Nova Transação
+        </button>
+    </div>
+
+    <!-- Filtro -->
+    <form method="get" th:action="@{/transactions}" id="filterForm" class="mb-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="col-form-label text-muted small fw-semibold">Filtrar por:</label>
+            </div>
+            <div class="col-sm-4">
+                <select name="filter" class="form-select form-select-sm"
+                        onchange="document.getElementById('filterForm').submit()">
+                    <option value="" th:selected="${filter == ''}">Todas as transações</option>
+                    <optgroup label="Contas">
+                        <option th:each="acc : ${accounts}"
+                                th:value="${'acc_' + acc.id}"
+                                th:text="${acc.name}"
+                                th:selected="${filter == 'acc_' + acc.id}"></option>
+                    </optgroup>
+                    <optgroup label="Cartões de Crédito">
+                        <option th:each="card : ${cards}"
+                                th:value="${'card_' + card.id}"
+                                th:text="${card.name}"
+                                th:selected="${filter == 'card_' + card.id}"></option>
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Conta</th>
+                        <th class="text-end">Valor</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="tx : ${transactions.content}">
+                        <td class="text-muted small"
+                            th:text="${#temporals.format(tx.transactionDate,'dd/MM/yy')}"></td>
+                        <td th:text="${tx.description}"></td>
+                        <td><span class="badge bg-secondary" th:text="${tx.category ?: '-'}"></span></td>
+                        <td class="small text-muted"
+                            th:text="${tx.creditCard != null ? ('Cartão ' + tx.creditCard.name) : (tx.account != null ? ('Conta ' + tx.account.name) : '-')}"></td>
+                        <td class="text-end fw-semibold"
+                            th:classappend="${tx.type == 'INCOME'} ? 'text-success' : (${tx.type == 'CARD_PAYMENT'} ? 'text-secondary' : 'text-danger')"
+                            th:text="${(tx.type == 'INCOME' ? '+' : (tx.type == 'CARD_PAYMENT' ? '↩ ' : '-')) + #numbers.formatCurrency(tx.amount)}"></td>
+                        <td>
+                            <form th:action="@{'/transactions/' + ${tx.id} + '/delete'}" method="post">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Remover?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${transactions.empty}">
+                        <td colspan="6" class="text-center text-muted py-4">Nenhuma transação registrada.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        <div th:if="${transactions.totalPages > 1}" class="card-footer bg-white">
+            <nav>
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item" th:classappend="${transactions.first} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/transactions(page=${transactions.number - 1}, filter=${filter})}">«</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link"
+                              th:text="${transactions.number + 1} + ' / ' + ${transactions.totalPages}"></span>
+                    </li>
+                    <li class="page-item" th:classappend="${transactions.last} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/transactions(page=${transactions.number + 1}, filter=${filter})}">»</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="addTxModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/transactions/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Nova Transação</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Descrição *</label>
+                        <input type="text" name="description" class="form-control" required/>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Tipo *</label>
+                            <select name="type" class="form-select" required>
+                                <option value="EXPENSE">Despesa</option>
+                                <option value="INCOME">Receita</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Valor (R$) *</label>
+                            <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required/>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Data *</label>
+                            <input type="date" name="transactionDate" class="form-control"
+                                   th:value="${#dates.format(#dates.createNow(),'yyyy-MM-dd')}" required/>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Categoria</label>
+                            <select name="category" class="form-select">
+                                <option value="">—</option>
+                                <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cartão de Crédito</label>
+                        <select name="creditCardId" class="form-select" id="txCreditCard">
+                            <option value="">— Não é compra no cartão —</option>
+                            <option th:each="c : ${cards}"
+                                    th:value="${c.id}"
+                                    th:text="${c.name}"></option>
+                        </select>
+                        <div class="form-text">Se selecionar um cartão, a conta abaixo é ignorada.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Conta</label>
+                        <select name="accountId" class="form-select">
+                            <option value="">Sem conta vinculada</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:value="${acc.id}"
+                                    th:text="${acc.name}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <input type="text" name="notes" class="form-control"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

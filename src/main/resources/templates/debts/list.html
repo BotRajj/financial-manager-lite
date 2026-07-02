@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Dívidas')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Dívidas</h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDebtModal">
+            <i class="bi bi-plus-circle me-1"></i>Novo Registro
+        </button>
+    </div>
+
+    <!-- ===== EU DEVO ===== -->
+    <h6 class="text-danger fw-semibold mb-3">
+        <i class="bi bi-arrow-up-right-circle me-1"></i>Eu Devo
+    </h6>
+
+    <div th:if="${#maps.isEmpty(payableNested)}" class="mb-4">
+        <div class="text-center text-muted py-4 border rounded">
+            <i class="bi bi-emoji-smile" style="font-size:2rem;"></i>
+            <p class="mt-2 mb-0">Nenhuma dívida registrada. Ótimo!</p>
+        </div>
+    </div>
+
+    <!-- Nível 1: banco -->
+    <div th:each="bankEntry : ${payableNested}" class="mb-4">
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <i class="bi bi-building text-danger"></i>
+            <span class="fw-semibold text-danger" th:text="${bankEntry.key}"></span>
+            <div class="flex-grow-1 border-bottom"></div>
+        </div>
+
+        <!-- Nível 2: cartão -->
+        <div th:each="cardEntry : ${bankEntry.value}" class="ms-3 mb-3">
+            <div class="d-flex align-items-center mb-2 gap-2">
+                <i class="bi bi-credit-card text-secondary small"></i>
+                <span class="text-secondary small fw-semibold" th:text="${cardEntry.key}"></span>
+                <div class="flex-grow-1 border-bottom border-light"></div>
+            </div>
+
+            <div class="row g-3">
+                <div th:each="debt : ${cardEntry.value}" class="col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm h-100"
+                         th:classappend="${debt.overdue} ? 'border-danger border' : ''">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-0" th:text="${debt.creditorName}"></h6>
+                                    <small class="text-muted" th:text="${debt.type}"></small>
+                                </div>
+                                <span class="badge"
+                                      th:classappend="${debt.status == 'SETTLED'} ? 'bg-success' : (${debt.overdue} ? 'bg-danger' : 'bg-primary')"
+                                      th:text="${debt.status == 'SETTLED' ? 'Quitado' : (debt.overdue ? 'Vencido' : 'Ativo')}"></span>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="text-muted small">Total</div>
+                                    <div class="fw-semibold"
+                                         th:text="${#numbers.formatCurrency(debt.totalAmount)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Restante</div>
+                                    <div class="fw-semibold text-danger"
+                                         th:text="${#numbers.formatCurrency(debt.remainingAmount)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Parcela</div>
+                                    <div class="fw-semibold text-primary"
+                                         th:text="${#numbers.formatCurrency(debt.installmentValue)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Progresso</div>
+                                    <div class="fw-semibold"
+                                         th:text="${debt.paidInstallments} + '/' + ${debt.totalInstallments}"></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="progress" style="height:5px;">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                             th:style="'width:' + (${debt.paidInstallments * 100 / debt.totalInstallments}) + '%'"></div>
+                                    </div>
+                                </div>
+                                <div class="col-12" th:if="${debt.dueDate != null}">
+                                    <small class="text-muted">Próx. venc.:
+                                        <span th:text="${#temporals.format(debt.dueDate,'dd/MM/yyyy')}"></span>
+                                    </small>
+                                </div>
+                            </div>
+                            <div th:if="${debt.status != 'SETTLED'}" class="d-flex gap-2">
+                                <form th:action="@{'/debts/' + ${debt.id} + '/pay'}" method="post"
+                                      class="d-flex gap-1 flex-grow-1">
+                                    <input type="number" name="amount" class="form-control form-control-sm"
+                                           th:value="${debt.installmentValue}" step="0.01" min="0.01" required/>
+                                    <button type="submit" class="btn btn-danger btn-sm text-nowrap">Pagar</button>
+                                </form>
+                                <button type="button" class="btn btn-outline-secondary btn-sm link-debt-btn"
+                                        th:data-id="${debt.id}"
+                                        th:data-bank-id="${debt.bank != null ? debt.bank.id : ''}"
+                                        th:data-card-id="${debt.creditCard != null ? debt.creditCard.id : ''}"
+                                        data-bs-toggle="modal" data-bs-target="#linkDebtModal"
+                                        title="Vincular banco/cartão">
+                                    <i class="bi bi-link-45deg"></i>
+                                </button>
+                                <form th:action="@{'/debts/' + ${debt.id} + '/delete'}" method="post">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                                            onclick="return confirm('Remover?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ME DEVEM ===== -->
+    <h6 class="text-success fw-semibold mb-3 mt-2">
+        <i class="bi bi-arrow-down-left-circle me-1"></i>Me Devem
+    </h6>
+
+    <div th:if="${#maps.isEmpty(receivableNested)}">
+        <div class="text-center text-muted py-4 border rounded">
+            <i class="bi bi-inbox" style="font-size:2rem;"></i>
+            <p class="mt-2 mb-0">Nenhuma receita parcelada registrada.</p>
+        </div>
+    </div>
+
+    <div th:each="bankEntry : ${receivableNested}" class="mb-4">
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <i class="bi bi-building text-success"></i>
+            <span class="fw-semibold text-success" th:text="${bankEntry.key}"></span>
+            <div class="flex-grow-1 border-bottom"></div>
+        </div>
+
+        <div th:each="cardEntry : ${bankEntry.value}" class="ms-3 mb-3">
+            <div class="d-flex align-items-center mb-2 gap-2">
+                <i class="bi bi-person text-secondary small"></i>
+                <span class="text-secondary small fw-semibold" th:text="${cardEntry.key}"></span>
+                <div class="flex-grow-1 border-bottom border-light"></div>
+            </div>
+
+            <div class="row g-3">
+                <div th:each="debt : ${cardEntry.value}" class="col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-0" th:text="${debt.creditorName}"></h6>
+                                    <small class="text-muted" th:text="${debt.type}"></small>
+                                </div>
+                                <span class="badge"
+                                      th:classappend="${debt.status == 'SETTLED'} ? 'bg-success' : 'bg-primary'"
+                                      th:text="${debt.status == 'SETTLED' ? 'Quitado' : 'Ativo'}"></span>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="text-muted small">Total</div>
+                                    <div class="fw-semibold"
+                                         th:text="${#numbers.formatCurrency(debt.totalAmount)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Restante</div>
+                                    <div class="fw-semibold text-success"
+                                         th:text="${#numbers.formatCurrency(debt.remainingAmount)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Parcela</div>
+                                    <div class="fw-semibold text-primary"
+                                         th:text="${#numbers.formatCurrency(debt.installmentValue)}"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Progresso</div>
+                                    <div class="fw-semibold"
+                                         th:text="${debt.paidInstallments} + '/' + ${debt.totalInstallments}"></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="progress" style="height:5px;">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                             th:style="'width:' + (${debt.paidInstallments * 100 / debt.totalInstallments}) + '%'"></div>
+                                    </div>
+                                </div>
+                                <div class="col-12" th:if="${debt.dueDate != null}">
+                                    <small class="text-muted">Próx. venc.:
+                                        <span th:text="${#temporals.format(debt.dueDate,'dd/MM/yyyy')}"></span>
+                                    </small>
+                                </div>
+                            </div>
+                            <div th:if="${debt.status != 'SETTLED'}" class="d-flex gap-2">
+                                <form th:action="@{'/debts/' + ${debt.id} + '/pay'}" method="post"
+                                      class="d-flex gap-1 flex-grow-1">
+                                    <input type="number" name="amount" class="form-control form-control-sm"
+                                           th:value="${debt.installmentValue}" step="0.01" min="0.01" required/>
+                                    <button type="submit" class="btn btn-success btn-sm text-nowrap">Receber</button>
+                                </form>
+                                <button type="button" class="btn btn-outline-secondary btn-sm link-debt-btn"
+                                        th:data-id="${debt.id}"
+                                        th:data-bank-id="${debt.bank != null ? debt.bank.id : ''}"
+                                        th:data-card-id="${debt.creditCard != null ? debt.creditCard.id : ''}"
+                                        data-bs-toggle="modal" data-bs-target="#linkDebtModal"
+                                        title="Vincular banco/cartão">
+                                    <i class="bi bi-link-45deg"></i>
+                                </button>
+                                <form th:action="@{'/debts/' + ${debt.id} + '/delete'}" method="post">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                                            onclick="return confirm('Remover?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova Dívida -->
+<div class="modal fade" id="addDebtModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/debts/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Novo Registro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tipo de registro *</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="direction"
+                                       id="dirPayable" value="PAYABLE" checked/>
+                                <label class="form-check-label text-danger fw-semibold" for="dirPayable">
+                                    <i class="bi bi-arrow-up-right-circle me-1"></i>Eu devo
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="direction"
+                                       id="dirReceivable" value="RECEIVABLE"/>
+                                <label class="form-check-label text-success fw-semibold" for="dirReceivable">
+                                    <i class="bi bi-arrow-down-left-circle me-1"></i>Me devem
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" id="creditorLabel">Credor *</label>
+                        <input type="text" name="creditorName" class="form-control" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo *</label>
+                        <select name="type" id="debtType" class="form-select" required>
+                            <option value="PERSONAL_LOAN">Empréstimo Pessoal</option>
+                            <option value="MORTGAGE">Financiamento Imobiliário</option>
+                            <option value="AUTO_LOAN">Financiamento Veicular</option>
+                            <option value="CREDIT_CARD_DEBT">Dívida Cartão</option>
+                            <option value="INSTALLMENT">Parcelamento</option>
+                            <option value="OTHER">Outro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="cardSelectorGroup" style="display:none;">
+                        <label class="form-label">Cartão vinculado</label>
+                        <select name="creditCardId" class="form-select">
+                            <option value="">— Selecione o cartão —</option>
+                            <option th:each="card : ${creditCards}"
+                                    th:value="${card.id}" th:text="${card.name}"></option>
+                        </select>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label">Valor Total (R$) *</label>
+                            <input type="number" name="totalAmount" class="form-control"
+                                   step="0.01" min="0.01" required/>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Parcelas *</label>
+                            <input type="number" name="totalInstallments" class="form-control"
+                                   min="1" value="1" required/>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Valor por parcela (R$)</label>
+                        <input type="number" name="installmentAmount" class="form-control"
+                               step="0.01" min="0.01"
+                               placeholder="Calculado automaticamente se vazio"/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Vencimento da próxima parcela</label>
+                        <input type="date" name="dueDate" class="form-control"/>
+                    </div>
+                    <div class="mb-3" id="contractRateGroup" style="display:none;">
+                        <label class="form-label">Taxa de juros contratada (% a.m.)
+                            <span class="text-muted small" data-bs-toggle="tooltip"
+                                  title="Taxa mensal informada no contrato do empréstimo">?</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" name="contractRate" class="form-control"
+                                   step="0.0001" min="0.0001" max="1" placeholder="Ex: 0.0250"/>
+                            <span class="input-group-text">%×100</span>
+                        </div>
+                        <div class="form-text">Opcional. 0.025 = 2,5% a.m. Consulte seu contrato.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <input type="text" name="description" class="form-control"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Vincular Banco/Cartão -->
+<div class="modal fade" id="linkDebtModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="linkDebtForm" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-link-45deg me-2"></i>Vincular Banco / Cartão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Banco</label>
+                        <select name="bankId" id="linkBankId" class="form-select">
+                            <option value="">— Sem banco —</option>
+                            <option th:each="bank : ${banks}"
+                                    th:value="${bank.id}"
+                                    th:text="${bank.name}"></option>
+                        </select>
+                        <div class="form-text">Para empréstimos diretos do banco (sem cartão).</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Cartão de Crédito</label>
+                        <select name="creditCardId" id="linkCardId" class="form-select">
+                            <option value="">— Sem cartão —</option>
+                            <option th:each="card : ${creditCards}"
+                                    th:value="${card.id}"
+                                    th:text="${card.name}"></option>
+                        </select>
+                        <div class="form-text">Se vincular um cartão, o banco do cartão será usado para agrupamento.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script>
+(function () {
+    const typeSelect        = document.getElementById('debtType');
+    const cardGroup         = document.getElementById('cardSelectorGroup');
+    const contractRateGroup = document.getElementById('contractRateGroup');
+    const dirPayable        = document.getElementById('dirPayable');
+    const dirReceivable     = document.getElementById('dirReceivable');
+    const creditorLabel     = document.getElementById('creditorLabel');
+    const CARD_TYPES        = ['CREDIT_CARD_DEBT', 'INSTALLMENT'];
+    const LOAN_TYPES        = ['PERSONAL_LOAN', 'MORTGAGE', 'AUTO_LOAN'];
+
+    function update() {
+        creditorLabel.textContent    = dirReceivable.checked ? 'Devedor *' : 'Credor *';
+        cardGroup.style.display      = CARD_TYPES.includes(typeSelect.value) && dirPayable.checked ? '' : 'none';
+        contractRateGroup.style.display = LOAN_TYPES.includes(typeSelect.value) && dirPayable.checked ? '' : 'none';
+    }
+
+    typeSelect.addEventListener('change', update);
+    dirPayable.addEventListener('change', update);
+    dirReceivable.addEventListener('change', update);
+    update();
+})();
+
+document.querySelectorAll('.link-debt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const form    = document.getElementById('linkDebtForm');
+        form.action   = '/debts/' + btn.dataset.id + '/link';
+        document.getElementById('linkBankId').value = btn.dataset.bankId || '';
+        document.getElementById('linkCardId').value = btn.dataset.cardId || '';
+    });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Recorrentes')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Transações Recorrentes</h4>
+            <small class="text-muted">Modelos usados na projeção. Para registrar no mês atual, use "Lançar".</small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#applyModal"
+                    th:disabled="${#lists.isEmpty(applyPreview)}">
+                <i class="bi bi-play-circle me-1"></i>
+                Lançar
+                <span th:if="${not #lists.isEmpty(applyPreview)}"
+                      class="badge bg-success ms-1" th:text="${#lists.size(applyPreview)}"></span>
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="bi bi-plus-circle me-1"></i>Nova Recorrência
+            </button>
+        </div>
+    </div>
+
+    <!-- Receitas -->
+    <h6 class="text-success fw-semibold mb-2"><i class="bi bi-arrow-up-circle me-1"></i>Receitas</h6>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Frequência</th>
+                        <th>Dia</th>
+                        <th>Conta</th>
+                        <th class="text-end">Valor</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="r : ${incomeRecurring}">
+                        <td th:text="${r.description}"></td>
+                        <td><span class="badge bg-secondary" th:text="${r.category ?: '-'}"></span></td>
+                        <td th:text="${r.frequency == 'MONTHLY' ? 'Mensal' : 'Anual'}"></td>
+                        <td class="text-muted small">
+                            <span th:if="${r.frequency == 'MONTHLY'}" th:text="'Dia ' + ${r.dayOfMonth}"></span>
+                            <span th:if="${r.frequency == 'ANNUAL'}"
+                                  th:text="'Dia ' + ${r.dayOfMonth} + '/' + ${r.monthOfYear}"></span>
+                        </td>
+                        <td class="small text-muted" th:text="${r.account?.name ?: '-'}"></td>
+                        <td class="text-end fw-semibold text-success"
+                            th:text="${'+' + #numbers.formatCurrency(r.amount)}"></td>
+                        <td>
+                            <form th:action="@{'/recurring/' + ${r.id} + '/delete'}" method="post">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Remover recorrência?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(incomeRecurring)}">
+                        <td colspan="7" class="text-center text-muted py-3">Nenhuma receita recorrente.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Despesas -->
+    <h6 class="text-danger fw-semibold mb-2"><i class="bi bi-arrow-down-circle me-1"></i>Despesas</h6>
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Frequência</th>
+                        <th>Dia</th>
+                        <th>Conta / Cartão</th>
+                        <th class="text-end">Valor</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="r : ${expenseRecurring}">
+                        <td th:text="${r.description}"></td>
+                        <td><span class="badge bg-secondary" th:text="${r.category ?: '-'}"></span></td>
+                        <td th:text="${r.frequency == 'MONTHLY' ? 'Mensal' : 'Anual'}"></td>
+                        <td class="text-muted small">
+                            <span th:if="${r.frequency == 'MONTHLY'}" th:text="'Dia ' + ${r.dayOfMonth}"></span>
+                            <span th:if="${r.frequency == 'ANNUAL'}"
+                                  th:text="'Dia ' + ${r.dayOfMonth} + '/' + ${r.monthOfYear}"></span>
+                        </td>
+                        <td class="small text-muted"
+                            th:text="${r.creditCard != null ? ('Cartão ' + r.creditCard.name) : (r.account != null ? ('Conta ' + r.account.name) : '-')}"></td>
+                        <td class="text-end fw-semibold text-danger"
+                            th:text="${'-' + #numbers.formatCurrency(r.amount)}"></td>
+                        <td>
+                            <form th:action="@{'/recurring/' + ${r.id} + '/delete'}" method="post">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Remover recorrência?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(expenseRecurring)}">
+                        <td colspan="7" class="text-center text-muted py-3">Nenhuma despesa recorrente.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/recurring/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Nova Recorrência</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Descrição *</label>
+                        <input type="text" name="description" class="form-control"
+                               placeholder="Ex: Salário, Aluguel, Netflix..." required/>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Tipo *</label>
+                            <select name="type" class="form-select" required>
+                                <option value="INCOME">Receita</option>
+                                <option value="EXPENSE">Despesa</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Valor (R$) *</label>
+                            <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required/>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Frequência *</label>
+                            <select name="frequency" class="form-select" id="freqSelect" required>
+                                <option value="MONTHLY">Mensal</option>
+                                <option value="ANNUAL">Anual</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Dia do mês *</label>
+                            <input type="number" name="dayOfMonth" class="form-control"
+                                   min="1" max="28" value="1" required/>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="monthField" style="display:none;">
+                        <label class="form-label">Mês do ano (para Anual) *</label>
+                        <select name="monthOfYear" class="form-select">
+                            <option value="1">Janeiro</option>
+                            <option value="2">Fevereiro</option>
+                            <option value="3">Março</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Maio</option>
+                            <option value="6">Junho</option>
+                            <option value="7">Julho</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Setembro</option>
+                            <option value="10">Outubro</option>
+                            <option value="11">Novembro</option>
+                            <option value="12">Dezembro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoria</label>
+                        <select name="category" class="form-select">
+                            <option value="">—</option>
+                            <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cartão de Crédito</label>
+                        <select name="creditCardId" class="form-select">
+                            <option value="">— Não é no cartão —</option>
+                            <option th:each="c : ${cards}" th:value="${c.id}" th:text="${c.name}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Conta</label>
+                        <select name="accountId" class="form-select">
+                            <option value="">Sem conta vinculada</option>
+                            <option th:each="acc : ${accounts}" th:value="${acc.id}" th:text="${acc.name}"></option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Lançar Recorrentes -->
+<div class="modal fade" id="applyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/recurring/apply-month}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-play-circle me-2 text-success"></i>
+                        Lançar recorrentes de
+                        <span th:text="${#temporals.format(currentMonth.atDay(1),'MMMM yyyy', #locale)}"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Desmarque os itens que não deseja lançar agora. Cada item só é lançado uma vez por mês.</p>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0"
+                            th:each="r : ${applyPreview}">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="checkbox" class="form-check-input mt-0"
+                                       name="ids" th:value="${r.id}" checked/>
+                                <div>
+                                    <div th:text="${r.description}"></div>
+                                    <small class="text-muted" th:text="${r.frequency == 'MONTHLY' ? 'Mensal' : 'Anual'}"></small>
+                                </div>
+                            </div>
+                            <span th:classappend="${r.type == 'INCOME'} ? 'text-success' : 'text-danger'"
+                                  class="fw-semibold"
+                                  th:text="${(r.type == 'INCOME' ? '+' : '-') + #numbers.formatCurrency(r.amount)}"></span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle me-1"></i>Confirmar e Lançar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script>
+    document.getElementById('freqSelect').addEventListener('change', function() {
+        document.getElementById('monthField').style.display = this.value === 'ANNUAL' ? '' : 'none';
+    });
+</script>
+</body>
+</html>
