@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Contas')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-bank me-2"></i>Contas Bancárias</h4>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#transferModal"
+                    th:disabled="${#lists.size(accounts) < 2}">
+                <i class="bi bi-arrow-left-right me-1"></i>Transferir
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                <i class="bi bi-plus-circle me-1"></i>Nova Conta
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div th:each="acc : ${accounts}" class="col-md-4 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-1">
+                        <div>
+                            <h6 class="fw-bold mb-0" th:text="${acc.name}"></h6>
+                            <small class="text-muted"
+                                   th:text="${acc.bank != null ? acc.bank.name : (acc.bankName ?: acc.type)}"></small>
+                        </div>
+                        <span class="badge bg-secondary" th:text="${acc.type}"></span>
+                    </div>
+                    <div th:if="${acc.bank != null}" class="mb-2">
+                        <span class="badge bg-primary bg-opacity-10 text-primary small">
+                            <i class="bi bi-building me-1"></i><span th:text="${acc.bank.name}"></span>
+                        </span>
+                    </div>
+                    <div class="fs-4 fw-bold"
+                         th:classappend="${acc.balance.signum() >= 0} ? 'text-success' : 'text-danger'"
+                         th:text="${#numbers.formatCurrency(acc.balance)}"></div>
+                    <div th:if="${installmentCount != null and installmentCount.containsKey(acc.id)}"
+                         class="mt-2 alert alert-info py-1 px-2 small mb-0 d-flex justify-content-between align-items-center flex-wrap gap-1">
+                        <span>
+                            <i class="bi bi-calendar3-range me-1"></i>
+                            <strong th:text="${installmentCount.get(acc.id)}"></strong>
+                            <span th:text="${installmentCount.get(acc.id) == 1 ? ' parcelamento ativo' : ' parcelamentos ativos'}"></span>
+                        </span>
+                        <span>
+                            <strong th:text="${#numbers.formatCurrency(installmentMonthly.get(acc.id))}"></strong>/mês
+                        </span>
+                        <span class="text-muted">
+                            total: <strong th:text="${#numbers.formatCurrency(installmentRemaining.get(acc.id))}"></strong>
+                        </span>
+                    </div>
+                    <div class="mt-3 d-flex gap-2 flex-wrap">
+                        <a th:href="@{'/accounts/' + ${acc.id}}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-clock-history me-1"></i>Histórico
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="modal" th:data-bs-target="${'#editAccountModal' + acc.id}">
+                            <i class="bi bi-pencil me-1"></i>Editar
+                        </button>
+                        <form th:action="@{'/accounts/' + ${acc.id} + '/delete'}" method="post">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                    onclick="return confirm('Desativar esta conta?')">
+                                <i class="bi bi-trash me-1"></i>Desativar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div th:if="${#lists.isEmpty(accounts)}" class="col-12">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-bank" style="font-size:3rem;"></i>
+                <p class="mt-2">Nenhuma conta cadastrada.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4" th:if="${not #lists.isEmpty(inactiveAccounts)}">
+        <button class="btn btn-link text-muted px-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#inactiveAccountsSection">
+            <i class="bi bi-archive me-1"></i>Contas desativadas (<span th:text="${#lists.size(inactiveAccounts)}"></span>)
+        </button>
+        <div class="collapse" id="inactiveAccountsSection">
+            <div class="row g-3 mt-1">
+                <div th:each="acc : ${inactiveAccounts}" class="col-md-4 col-xl-3">
+                    <div class="card border-0 shadow-sm h-100 opacity-75">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-1">
+                                <div>
+                                    <h6 class="fw-bold mb-0" th:text="${acc.name}"></h6>
+                                    <small class="text-muted"
+                                           th:text="${acc.bank != null ? acc.bank.name : (acc.bankName ?: acc.type)}"></small>
+                                </div>
+                                <span class="badge bg-secondary">Desativada</span>
+                            </div>
+                            <div class="fs-5 fw-bold text-muted"
+                                 th:text="${#numbers.formatCurrency(acc.balance)}"></div>
+                            <div class="mt-3 d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        data-bs-toggle="modal" th:data-bs-target="${'#editAccountModal' + acc.id}">
+                                    <i class="bi bi-pencil me-1"></i>Editar
+                                </button>
+                                <form th:action="@{'/accounts/' + ${acc.id} + '/reactivate'}" method="post">
+                                    <button type="submit" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reativar
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modais Editar Conta -->
+<th:block th:each="acc : ${accounts}">
+    <div class="modal fade" th:id="${'editAccountModal' + acc.id}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{'/accounts/' + ${acc.id} + '/edit'}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Editar Conta</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" name="name" class="form-control" th:value="${acc.name}" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                            <select name="bankId" class="form-select">
+                                <option value="">— Sem banco vinculado —</option>
+                                <option th:each="bank : ${banks}"
+                                        th:value="${bank.id}" th:text="${bank.name}"
+                                        th:selected="${acc.bank != null and acc.bank.id == bank.id}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo *</label>
+                            <select name="type" class="form-select" required>
+                                <option value="CHECKING" th:selected="${acc.type == 'CHECKING'}">Conta Corrente</option>
+                                <option value="SAVINGS" th:selected="${acc.type == 'SAVINGS'}">Poupança</option>
+                                <option value="DIGITAL" th:selected="${acc.type == 'DIGITAL'}">Conta Digital</option>
+                                <option value="INVESTMENT" th:selected="${acc.type == 'INVESTMENT'}">Investimentos</option>
+                                <option value="SALARY" th:selected="${acc.type == 'SALARY'}">Conta Salário</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Saldo (R$)</label>
+                            <input type="number" name="balance" class="form-control" step="0.01" th:value="${acc.balance}"/>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+<th:block th:each="acc : ${inactiveAccounts}">
+    <div class="modal fade" th:id="${'editAccountModal' + acc.id}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{'/accounts/' + ${acc.id} + '/edit'}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Editar Conta</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" name="name" class="form-control" th:value="${acc.name}" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                            <select name="bankId" class="form-select">
+                                <option value="">— Sem banco vinculado —</option>
+                                <option th:each="bank : ${banks}"
+                                        th:value="${bank.id}" th:text="${bank.name}"
+                                        th:selected="${acc.bank != null and acc.bank.id == bank.id}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo *</label>
+                            <select name="type" class="form-select" required>
+                                <option value="CHECKING" th:selected="${acc.type == 'CHECKING'}">Conta Corrente</option>
+                                <option value="SAVINGS" th:selected="${acc.type == 'SAVINGS'}">Poupança</option>
+                                <option value="DIGITAL" th:selected="${acc.type == 'DIGITAL'}">Conta Digital</option>
+                                <option value="INVESTMENT" th:selected="${acc.type == 'INVESTMENT'}">Investimentos</option>
+                                <option value="SALARY" th:selected="${acc.type == 'SALARY'}">Conta Salário</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Saldo (R$)</label>
+                            <input type="number" name="balance" class="form-control" step="0.01" th:value="${acc.balance}"/>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<!-- Modal Transferir entre contas -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/accounts/transfer}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Transferir entre Contas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">De (conta de origem) *</label>
+                        <select name="fromAccountId" class="form-select" required>
+                            <option value="">— Selecione —</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:value="${acc.id}"
+                                    th:text="${acc.name + ' (' + #numbers.formatCurrency(acc.balance) + ')'}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Para (conta de destino) *</label>
+                        <select name="toAccountId" class="form-select" required>
+                            <option value="">— Selecione —</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:value="${acc.id}"
+                                    th:text="${acc.name + ' (' + #numbers.formatCurrency(acc.balance) + ')'}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Valor (R$) *</label>
+                        <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição <span class="text-muted small fw-normal">(opcional)</span></label>
+                        <input type="text" name="description" class="form-control" placeholder="Ex: Reserva de emergência"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Transferir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="addAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/accounts/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Nova Conta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome *</label>
+                        <input type="text" name="name" class="form-control" placeholder="Ex: Conta Corrente Principal" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Banco <span class="text-muted small fw-normal">(opcional)</span></label>
+                        <select name="bankId" class="form-select">
+                            <option value="">— Sem banco vinculado —</option>
+                            <option th:each="bank : ${banks}"
+                                    th:value="${bank.id}" th:text="${bank.name}"></option>
+                        </select>
+                        <div class="form-text">
+                            <a th:href="@{/banks}" class="text-decoration-none">
+                                <i class="bi bi-plus-circle me-1"></i>Cadastrar novo banco
+                            </a>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo *</label>
+                        <select name="type" class="form-select" required>
+                            <option value="CHECKING">Conta Corrente</option>
+                            <option value="SAVINGS">Poupança</option>
+                            <option value="DIGITAL">Conta Digital</option>
+                            <option value="INVESTMENT">Investimentos</option>
+                            <option value="SALARY">Conta Salário</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Saldo Inicial (R$)</label>
+                        <input type="number" name="balance" class="form-control" step="0.01" value="0"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Conta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

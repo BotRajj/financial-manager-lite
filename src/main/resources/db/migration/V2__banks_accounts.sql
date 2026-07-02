@@ -1,0 +1,19 @@
+CREATE TABLE banks (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id    BIGINT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       VARCHAR(100)  NOT NULL,
+    active     BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE accounts (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id    BIGINT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    bank_id    BIGINT        REFERENCES banks(id) ON DELETE SET NULL,
+    name       VARCHAR(100)  NOT NULL,
+    bank_name  VARCHAR(100),
+    type       VARCHAR(30)   NOT NULL,
+    balance    NUMERIC(15,2) NOT NULL DEFAULT 0,
+    active     BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

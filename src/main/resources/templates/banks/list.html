@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Bancos')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Meus Bancos</h4>
+            <small class="text-muted">Contas, cartões e dívidas organizados por banco</small>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBankModal">
+            <i class="bi bi-plus-circle me-1"></i>Novo Banco
+        </button>
+    </div>
+
+    <!-- ===== CARDS POR BANCO ===== -->
+    <div class="row g-3 mb-4">
+        <div th:each="summary : ${summaries}" class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+
+                <!-- Cabeçalho do banco -->
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-1">
+                        <div>
+                            <h6 class="fw-bold mb-0"><i class="bi bi-building me-2"></i><span th:text="${summary.bank.name}"></span></h6>
+                        </div>
+                        <form th:action="@{'/banks/' + ${summary.bank.id} + '/delete'}" method="post" class="mb-0">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                    onclick="return confirm('Remover banco? As contas e cartões perdem o vínculo.')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="row g-2 text-center mb-3">
+                        <div class="col-4">
+                            <div class="text-muted small">Saldo</div>
+                            <div class="fw-semibold small"
+                                 th:classappend="${summary.totalBalance.signum() >= 0} ? 'text-success' : 'text-danger'"
+                                 th:text="${#numbers.formatCurrency(summary.totalBalance)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Fatura</div>
+                            <div class="fw-semibold small text-danger" th:text="${#numbers.formatCurrency(summary.totalCardUsed)}"></div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Dívidas</div>
+                            <div class="fw-semibold small" th:text="${#numbers.formatCurrency(summary.totalDebt)}"></div>
+                        </div>
+                    </div>
+
+                    <!-- ── CONTAS ── -->
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary small">
+                                <i class="bi bi-bank me-1"></i>Contas
+                            </span>
+                            <button class="btn btn-outline-primary btn-sm add-account-btn"
+                                    th:data-bank-id="${summary.bank.id}"
+                                    th:data-bank-name="${summary.bank.name}"
+                                    data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+
+                        <div th:if="${#lists.isEmpty(summary.accounts)}" class="text-muted small fst-italic mb-2">
+                            Nenhuma conta vinculada.
+                        </div>
+                        <div th:each="acc : ${summary.accounts}"
+                             class="d-flex justify-content-between align-items-center py-1 border-bottom border-light">
+                            <div>
+                                <span class="fw-semibold small" th:text="${acc.name}"></span>
+                                <span class="badge bg-light text-secondary ms-1" style="font-size:0.7rem;"
+                                      th:text="${acc.type}"></span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold small"
+                                      th:classappend="${acc.balance.signum() >= 0} ? 'text-success' : 'text-danger'"
+                                      th:text="${#numbers.formatCurrency(acc.balance)}"></span>
+                                <form th:action="@{'/accounts/' + ${acc.id} + '/delete'}" method="post" class="mb-0">
+                                    <button type="submit" class="btn btn-link btn-sm text-danger p-0"
+                                            onclick="return confirm('Desativar esta conta?')" title="Desativar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── CARTÕES ── -->
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary small">
+                                <i class="bi bi-credit-card me-1"></i>Cartões
+                            </span>
+                            <button class="btn btn-outline-primary btn-sm add-card-btn"
+                                    th:data-bank-id="${summary.bank.id}"
+                                    th:data-bank-name="${summary.bank.name}"
+                                    data-bs-toggle="modal" data-bs-target="#addCardModal">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+
+                        <div th:if="${#lists.isEmpty(summary.cards)}" class="text-muted small fst-italic mb-2">
+                            Nenhum cartão vinculado.
+                        </div>
+                        <div th:each="card : ${summary.cards}"
+                             class="py-1 border-bottom border-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="fw-semibold small" th:text="${card.name}"></span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="text-end">
+                                        <div class="small fw-semibold text-danger"
+                                             th:text="${#numbers.formatCurrency(card.usedAmount)}"></div>
+                                        <div class="text-muted" style="font-size:0.7rem;"
+                                             th:text="'lim. ' + ${#numbers.formatCurrency(card.creditLimit)}"></div>
+                                    </div>
+                                    <a th:href="@{'/credit-cards/' + ${card.id} + '/invoice'}"
+                                       class="btn btn-sm btn-outline-secondary" title="Ver fatura">
+                                        <i class="bi bi-receipt"></i>
+                                    </a>
+                                    <form th:action="@{'/credit-cards/' + ${card.id} + '/delete'}" method="post" class="mb-0">
+                                        <button type="submit" class="btn btn-link btn-sm text-danger p-0"
+                                                onclick="return confirm('Desativar cartão?')" title="Desativar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <!-- Barra de uso do limite -->
+                            <div class="progress mt-1" style="height:6px;">
+                                <div class="progress-bar"
+                                     th:classappend="${card.usagePercentage >= 90} ? 'bg-danger' : (${card.usagePercentage >= 70} ? 'bg-warning' : 'bg-success')"
+                                     th:style="'width:' + (${card.usagePercentage > 100 ? 100 : card.usagePercentage}) + '%'"></div>
+                            </div>
+                            <!-- Pagamento mínimo -->
+                            <div th:if="${card.usedAmount.signum() > 0}"
+                                 class="text-muted mt-1" style="font-size:0.72rem;">
+                                Pag. mínimo est.:
+                                <strong th:text="${#numbers.formatCurrency(card.minimumPayment)}"></strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── PARCELAMENTOS ATIVOS ── -->
+                    <div th:if="${not #lists.isEmpty(summary.installments)}"
+                         class="alert alert-info py-1 px-2 small mb-0 d-flex justify-content-between align-items-center flex-wrap gap-1">
+                        <span>
+                            <i class="bi bi-calendar3-range me-1"></i>
+                            <strong th:text="${#lists.size(summary.installments)}"></strong>
+                            <span th:text="${#lists.size(summary.installments) == 1 ? ' parcelamento ativo' : ' parcelamentos ativos'}"></span>
+                        </span>
+                        <span>
+                            <strong th:text="${#numbers.formatCurrency(summary.totalInstallmentMonthly)}"></strong>/mês
+                        </span>
+                        <span class="text-muted">
+                            total: <strong th:text="${#numbers.formatCurrency(summary.totalDebt)}"></strong>
+                        </span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Nenhum banco cadastrado -->
+        <div th:if="${#lists.isEmpty(summaries) and #lists.isEmpty(unboundAccounts) and #lists.isEmpty(unboundCards)}"
+             class="col-12 text-center text-muted py-5 border rounded">
+            <i class="bi bi-building" style="font-size:3rem;"></i>
+            <p class="mt-3">Nenhum banco cadastrado ainda.<br>
+                Crie um banco e depois vincule suas contas e cartões.</p>
+        </div>
+    </div>
+
+    <!-- ===== SEM BANCO ===== -->
+    <div th:if="${not #lists.isEmpty(unboundAccounts) or not #lists.isEmpty(unboundCards)}"
+         class="card border-0 shadow-sm border-start border-warning border-3">
+        <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center justify-content-between py-2">
+            <span class="fw-semibold text-warning-emphasis">
+                <i class="bi bi-question-circle me-1"></i>Sem banco vinculado
+            </span>
+            <small class="text-muted">Selecione o banco e clique em "Vincular"</small>
+        </div>
+        <div class="card-body p-0">
+
+            <!-- Contas sem banco -->
+            <div th:if="${not #lists.isEmpty(unboundAccounts)}" class="p-3 border-bottom">
+                <div class="text-muted small fw-semibold text-uppercase mb-2">
+                    <i class="bi bi-bank me-1"></i>Contas
+                </div>
+                <div th:each="acc : ${unboundAccounts}"
+                     class="d-flex justify-content-between align-items-center py-2 border-bottom border-light">
+                    <div>
+                        <span class="fw-semibold small" th:text="${acc.name}"></span>
+                        <span class="badge bg-light text-secondary ms-1" style="font-size:0.7rem;"
+                              th:text="${acc.type}"></span>
+                        <span class="ms-2 fw-bold small"
+                              th:classappend="${acc.balance.signum() >= 0} ? 'text-success' : 'text-danger'"
+                              th:text="${#numbers.formatCurrency(acc.balance)}"></span>
+                    </div>
+                    <form th:action="@{'/accounts/' + ${acc.id} + '/link-bank'}" method="post"
+                          class="d-flex gap-2 mb-0">
+                        <select name="bankId" class="form-select form-select-sm" style="width:160px;">
+                            <option value="">— Escolha o banco —</option>
+                            <option th:each="bank : ${banks}"
+                                    th:value="${bank.id}" th:text="${bank.name}"></option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-warning text-nowrap">Vincular</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Cartões sem banco -->
+            <div th:if="${not #lists.isEmpty(unboundCards)}" class="p-3 border-bottom">
+                <div class="text-muted small fw-semibold text-uppercase mb-2">
+                    <i class="bi bi-credit-card me-1"></i>Cartões
+                </div>
+                <div th:each="card : ${unboundCards}"
+                     class="d-flex justify-content-between align-items-center py-2 border-bottom border-light">
+                    <div>
+                        <span class="fw-semibold small" th:text="${card.name}"></span>
+                        <span class="ms-2 small text-danger fw-semibold"
+                              th:text="'Fatura: ' + ${#numbers.formatCurrency(card.usedAmount)}"></span>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <a th:href="@{'/credit-cards/' + ${card.id} + '/invoice'}"
+                           class="btn btn-sm btn-outline-secondary" title="Ver fatura">
+                            <i class="bi bi-receipt"></i>
+                        </a>
+                        <form th:action="@{'/credit-cards/' + ${card.id} + '/link-bank'}" method="post"
+                              class="d-flex gap-2 mb-0">
+                            <select name="bankId" class="form-select form-select-sm" style="width:160px;">
+                                <option value="">— Escolha o banco —</option>
+                                <option th:each="bank : ${banks}"
+                                        th:value="${bank.id}" th:text="${bank.name}"></option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-warning text-nowrap">Vincular</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<!-- ===== MODAL NOVO BANCO ===== -->
+<div class="modal fade" id="addBankModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/banks/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Novo Banco</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Nome do banco *</label>
+                    <input type="text" name="name" class="form-control"
+                           placeholder="Ex: Itaú, Nubank, Bradesco..." required/>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL NOVA CONTA ===== -->
+<div class="modal fade" id="addAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form th:action="@{/accounts/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Nova Conta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Banco</label>
+                        <input type="text" class="form-control" id="addAccBankDisplay" readonly/>
+                        <input type="hidden" name="bankId" id="addAccBankId"/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome *</label>
+                        <input type="text" name="name" class="form-control"
+                               placeholder="Ex: Conta Corrente, Poupança..." required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo *</label>
+                        <select name="type" class="form-select" required>
+                            <option value="CHECKING">Conta Corrente</option>
+                            <option value="SAVINGS">Poupança</option>
+                            <option value="DIGITAL">Conta Digital</option>
+                            <option value="SALARY">Conta Salário</option>
+                            <option value="INVESTMENT">Investimentos</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Saldo Inicial (R$)</label>
+                        <input type="number" name="balance" class="form-control" step="0.01" value="0"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL NOVO CARTÃO ===== -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form th:action="@{/credit-cards/create}" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Novo Cartão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Banco</label>
+                            <input type="text" class="form-control" id="addCardBankDisplay" readonly/>
+                            <input type="hidden" name="bankId" id="addCardBankId"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" name="name" class="form-control"
+                                   placeholder="Ex: Itaú Platinum" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Limite (R$) *</label>
+                            <input type="number" name="creditLimit" class="form-control"
+                                   step="0.01" min="1" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Dia Fechamento *</label>
+                            <input type="number" name="closingDay" class="form-control"
+                                   min="1" max="31" value="10" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Dia Vencimento *</label>
+                            <input type="number" name="dueDay" class="form-control"
+                                   min="1" max="31" value="17" required/>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Juros Rotativo</label>
+                            <div class="input-group">
+                                <input type="number" name="rotatingCreditRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" value="0.15" required/>
+                                <span class="input-group-text small">a.m.</span>
+                            </div>
+                            <div class="form-text">0.15 = 15% a.m.</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Parc. fatura</label>
+                            <div class="input-group">
+                                <input type="number" name="installmentRate" class="form-control"
+                                       step="0.0001" min="0.0001" max="1" value="0.1590" required/>
+                                <span class="input-group-text small">a.m.</span>
+                            </div>
+                            <div class="form-text">0.1590 = 15,90% a.m.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+<script>
+// Preenche o banco nos modals de Nova Conta e Novo Cartão
+document.querySelectorAll('.add-account-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('addAccBankId').value    = btn.dataset.bankId;
+        document.getElementById('addAccBankDisplay').value = btn.dataset.bankName;
+    });
+});
+document.querySelectorAll('.add-card-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('addCardBankId').value    = btn.dataset.bankId;
+        document.getElementById('addCardBankDisplay').value = btn.dataset.bankName;
+    });
+});
+</script>
+</body>
+</html>

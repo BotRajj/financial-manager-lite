@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+<head th:replace="~{fragments/layout :: head('Histórico da Conta')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<div class="container-fluid py-4">
+
+    <!-- Cabeçalho -->
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="@{/accounts}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Contas
+        </a>
+        <div>
+            <h4 class="mb-0 fw-bold" th:text="${account.name}"></h4>
+            <small class="text-muted"
+                   th:text="${account.bank != null ? account.bank.name : (account.bankName ?: account.type)}"></small>
+        </div>
+        <span class="badge bg-secondary ms-1" th:text="${account.type}"></span>
+    </div>
+
+    <!-- Resumo -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3 border-start border-primary border-4">
+                <div class="text-muted small mb-1">Saldo Atual</div>
+                <div class="fs-4 fw-bold"
+                     th:classappend="${account.balance.signum() >= 0} ? 'text-success' : 'text-danger'"
+                     th:text="${#numbers.formatCurrency(account.balance)}"></div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3 border-start border-success border-4">
+                <div class="text-muted small mb-1">Total Entradas</div>
+                <div class="fs-4 fw-bold text-success"
+                     th:text="${#numbers.formatCurrency(totalIn)}"></div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3 border-start border-danger border-4">
+                <div class="text-muted small mb-1">Total Saídas</div>
+                <div class="fs-4 fw-bold text-danger"
+                     th:text="${#numbers.formatCurrency(totalOut)}"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de movimentações -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <span class="fw-semibold"><i class="bi bi-clock-history me-2"></i>Histórico de Movimentações</span>
+            <small class="text-muted"
+                   th:text="${entries.totalElements} + ' lançamento(s) no total'"></small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="e : ${entries.content}">
+                        <td class="text-muted small text-nowrap"
+                            th:text="${#temporals.format(e.entryDate, 'dd/MM/yyyy')}"></td>
+                        <td>
+                            <div th:text="${e.description}"></div>
+                            <small th:if="${e.notes != null and !#strings.isEmpty(e.notes)}"
+                                   class="text-muted" th:text="${e.notes}"></small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary" th:text="${e.category ?: '-'}"></span>
+                        </td>
+                        <td>
+                            <span th:if="${e.type == 'INCOME'}"
+                                  class="badge bg-success bg-opacity-10 text-success">
+                                <i class="bi bi-arrow-down-circle me-1"></i>Entrada
+                            </span>
+                            <span th:if="${e.type == 'EXPENSE'}"
+                                  class="badge bg-danger bg-opacity-10 text-danger">
+                                <i class="bi bi-arrow-up-circle me-1"></i>Saída
+                            </span>
+                            <span th:if="${e.type == 'TRANSFER_IN'}"
+                                  class="badge bg-primary bg-opacity-10 text-primary">
+                                <i class="bi bi-arrow-left-right me-1"></i>Transferência entrada
+                            </span>
+                            <span th:if="${e.type == 'TRANSFER_OUT'}"
+                                  class="badge bg-secondary">
+                                <i class="bi bi-arrow-left-right me-1"></i>Transferência saída
+                            </span>
+                            <span th:if="${e.type == 'CARD_PAYMENT'}"
+                                  class="badge bg-warning text-dark">
+                                <i class="bi bi-credit-card me-1"></i>Pgto. Fatura
+                            </span>
+                        </td>
+                        <td class="text-end fw-semibold text-nowrap"
+                            th:classappend="${e.type == 'INCOME' or e.type == 'TRANSFER_IN'} ? 'text-success' : (${e.type == 'CARD_PAYMENT' or e.type == 'TRANSFER_OUT'} ? 'text-secondary' : 'text-danger')"
+                            th:text="${(e.type == 'INCOME' or e.type == 'TRANSFER_IN' ? '+' : (e.type == 'TRANSFER_OUT' ? '→ ' : (e.type == 'CARD_PAYMENT' ? '↩ ' : '-'))) + #numbers.formatCurrency(e.amount)}">
+                        </td>
+                    </tr>
+                    <tr th:if="${entries.empty}">
+                        <td colspan="5" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size:2rem;"></i>
+                            <p class="mt-2 mb-0">Nenhuma movimentação registrada nesta conta.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        <div th:if="${entries.totalPages > 1}" class="card-footer bg-white">
+            <nav>
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item" th:classappend="${entries.first} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{'/accounts/' + ${account.id}(page=${entries.number - 1})}">«</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link"
+                              th:text="${entries.number + 1} + ' / ' + ${entries.totalPages}"></span>
+                    </li>
+                    <li class="page-item" th:classappend="${entries.last} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{'/accounts/' + ${account.id}(page=${entries.number + 1})}">»</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>
