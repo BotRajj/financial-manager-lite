@@ -65,10 +65,10 @@ spring:
       on-profile: postgres
 
   datasource:
-    url: ${DATABASE_URL}
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
     driver-class-name: org.postgresql.Driver
-    username: ${DB_USER:}
-    password: ${DB_PASSWORD:}
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1

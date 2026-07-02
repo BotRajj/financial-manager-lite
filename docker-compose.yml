@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fmlite-postgres
+    environment:
+      POSTGRES_DB: fmlite
+      POSTGRES_USER: fmlite
+      POSTGRES_PASSWORD: fmlite123
+    ports:
+      - "5432:5432"
+    volumes:
+      - fmlite_data:/var/lib/postgresql/data
+
+volumes:
+  fmlite_data:
