@@ -46,3 +46,11 @@ Open [http://localhost:8080](http://localhost:8080) and log in with `demo@demo.c
 The first build takes 3–5 minutes (Maven downloads dependencies inside the container). Subsequent starts are instant.
 
 > To reset the database: `docker-compose down -v && docker-compose up --build`
+
+## Roadmap
+
+- [ ] UI/UX redesign — improved layout, responsiveness and visual consistency
+- [ ] Budget module — complete category management and period comparison
+- [ ] Notifications — WhatsApp and email alerts for upcoming bills and budget limits
+- [ ] Multi-user — shared accounts between family members or partners
+- [ ] Open Finance integration — automatic transaction import via Brazilian Open Finance APIs
