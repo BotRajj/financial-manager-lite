@@ -10,6 +10,27 @@ services:
       - "5432:5432"
     volumes:
       - fmlite_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fmlite -d fmlite"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: fmlite-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: fmlite
+      PGUSER: fmlite
+      PGPASSWORD: fmlite123
+    ports:
+      - "8080:8080"
 
 volumes:
   fmlite_data:
