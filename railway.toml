@@ -1,9 +1,7 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "mvn clean package -DskipTests"
+builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "java -Xms128m -Xmx350m -Dspring.profiles.active=postgres -jar target/financial-manager-lite-1.0.0.jar"
 healthcheckPath = "/actuator/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
